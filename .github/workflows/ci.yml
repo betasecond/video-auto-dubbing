@@ -136,29 +136,38 @@ jobs:
         with:
           python-version: '3.11'
       
-      - name: Install dependencies
+      - name: Check if Python files exist
         if: steps.check_dir.outputs.exists == 'true'
+        id: check_py_files
+        working-directory: tts_service
+        run: |
+          # 检查是否有 Python 文件（排除隐藏目录）
+          py_files=$(find . -name '*.py' -type f -not -path '*/\.*' 2>/dev/null | head -1)
+          if [ -z "$py_files" ]; then
+            echo "has_py_files=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  未找到 Python 文件，将跳过 Python 检查"
+          else
+            echo "has_py_files=true" >> $GITHUB_OUTPUT
+            echo "✅ 找到 Python 文件，将继续检查"
+          fi
+      
+      - name: Install dependencies
+        if: steps.check_dir.outputs.exists == 'true' && steps.check_py_files.outputs.has_py_files == 'true'
         working-directory: tts_service
         run: |
           # 如果 uv.lock 不存在，使用 sync 而不是 sync --frozen
           if [ -f "uv.lock" ]; then
             echo "使用 uv.lock 安装依赖..."
-            uv sync --frozen
+            uv sync --frozen || uv sync
           else
             echo "uv.lock 不存在，使用 uv sync..."
             uv sync
           fi
       
       - name: Check formatting (black)
-        if: steps.check_dir.outputs.exists == 'true'
+        if: steps.check_dir.outputs.exists == 'true' && steps.check_py_files.outputs.has_py_files == 'true'
         working-directory: tts_service
         run: |
-          # 检查是否有 Python 文件
-          py_files=$(find . -name '*.py' -type f -not -path '*/\.*' | head -1)
-          if [ -z "$py_files" ]; then
-            echo "ℹ️  未找到 Python 文件，跳过格式化检查"
-            exit 0
-          fi
           uv run black --check . || {
             echo "⚠️  格式化检查失败，请运行: uv run black ."
             exit 1
@@ -166,15 +175,9 @@ jobs:
           echo "✅ Python 代码格式检查通过"
       
       - name: Run ruff
-        if: steps.check_dir.outputs.exists == 'true'
+        if: steps.check_dir.outputs.exists == 'true' && steps.check_py_files.outputs.has_py_files == 'true'
         working-directory: tts_service
         run: |
-          # 检查是否有 Python 文件
-          py_files=$(find . -name '*.py' -type f -not -path '*/\.*' | head -1)
-          if [ -z "$py_files" ]; then
-            echo "ℹ️  未找到 Python 文件，跳过 ruff 检查"
-            exit 0
-          fi
           uv run ruff check . || {
             echo "⚠️  ruff 检查失败"
             exit 1
@@ -182,11 +185,11 @@ jobs:
           echo "✅ ruff 检查通过"
       
       - name: Run tests
-        if: steps.check_dir.outputs.exists == 'true'
+        if: steps.check_dir.outputs.exists == 'true' && steps.check_py_files.outputs.has_py_files == 'true'
         working-directory: tts_service
         run: |
           # 检查是否有测试文件
-          test_files=$(find . -name 'test_*.py' -o -name '*_test.py' -type f | head -1)
+          test_files=$(find . -name 'test_*.py' -o -name '*_test.py' -type f 2>/dev/null | head -1)
           if [ -z "$test_files" ]; then
             echo "ℹ️  未找到测试文件，跳过测试"
             exit 0
@@ -195,6 +198,10 @@ jobs:
             echo "⚠️  测试失败"
             exit 1
           }
+      
+      - name: Skip Python checks message
+        if: steps.check_dir.outputs.exists == 'true' && steps.check_py_files.outputs.has_py_files == 'false'
+        run: echo "ℹ️  跳过 Python 检查（未找到 Python 代码文件）"
       
       - name: Upload coverage
         if: steps.check_dir.outputs.exists == 'true'
