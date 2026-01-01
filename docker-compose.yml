@@ -105,7 +105,6 @@ services:
       rabbitmq:
         condition: service_healthy
     volumes:
-      - ./api:/app
       - api_logs:/app/logs
     networks:
       - dubbing-network
@@ -152,7 +151,6 @@ services:
       tts_service:
         condition: service_healthy
     volumes:
-      - ./worker:/app
       - worker_logs:/app/logs
     networks:
       - dubbing-network
@@ -184,13 +182,12 @@ services:
       AUDIO_TEMP_DIR: /app/temp/audio
       AUDIO_TEMP_RETENTION_HOURS: 24
     ports:
-      - "${TTS_PORT:-8000}:8000"
+      - "${TTS_PORT:-8001}:8000"
     volumes:
-      - ./tts_service:/app
       - tts_models:/app/models
       - tts_temp:/app/temp
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
       interval: 30s
       timeout: 10s
       retries: 5

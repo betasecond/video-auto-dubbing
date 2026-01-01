@@ -57,8 +57,13 @@ async def startup_event():
 
     # Load TTS model
     try:
-        synthesizer.load_model()
-        logger.info("TTS service started successfully")
+        # In MVP, we allow per-request ModelScope token (via header). If no default token is
+        # provided, skip eager model loading and rely on lazy loading on first request.
+        if settings.tts_backend == "modelscope" and not settings.modelscope_token:
+            logger.warning("MODELSCOPE_TOKEN not set; skipping eager model load (will lazy-load per request)")
+        else:
+            synthesizer.load_model()
+            logger.info("TTS service started successfully")
     except Exception as e:
         logger.error(f"Failed to start TTS service: {e}", exc_info=True)
         # Don't raise - allow service to start in degraded mode

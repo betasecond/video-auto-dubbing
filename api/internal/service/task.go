@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"mime/multipart"
 	"path/filepath"
@@ -207,7 +206,7 @@ func (s *TaskService) GetTaskWithSteps(ctx context.Context, taskID uuid.UUID) (*
 
 // GetTaskResult retrieves the result of a completed task.
 func (s *TaskService) GetTaskResult(ctx context.Context, taskID uuid.UUID) (map[string]interface{}, error) {
-	task, steps, err := s.GetTaskWithSteps(ctx, taskID)
+	task, _, err := s.GetTaskWithSteps(ctx, taskID)
 	if err != nil {
 		return nil, err
 	}

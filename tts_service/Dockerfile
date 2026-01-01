@@ -11,15 +11,23 @@ WORKDIR /app
 COPY pyproject.toml uv.lock* ./
 
 # Install dependencies
-RUN uv sync --frozen --no-dev
+# NOTE: repo may not include uv.lock in MVP stage; allow resolver to run without --frozen
+RUN uv sync --no-dev
 
 # Runtime stage
 FROM python:3.11-slim
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    libsndfile1 \
+RUN set -eux; \
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources; \
+    fi; \
+    if [ -f /etc/apt/sources.list ]; then \
+        sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list; \
+    fi; \
+    apt-get update && apt-get install -y --no-install-recommends \
+        ffmpeg \
+        libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -46,5 +54,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8000/health')"
 
 # Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 

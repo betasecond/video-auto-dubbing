@@ -540,13 +540,6 @@ func (w *Worker) mergeSegmentAudios(ctx context.Context, taskID uuid.UUID) error
 		return fmt.Errorf("no segments found")
 	}
 
-	// Find total duration
-	var totalDurationMs int
-	if len(segments) > 0 {
-		lastSeg := segments[len(segments)-1]
-		totalDurationMs = lastSeg.endMs
-	}
-
 	// Download all segment audio files to temp directory
 	tempDir := fmt.Sprintf("/tmp/%s_merge", taskID)
 	if err := os.MkdirAll(tempDir, 0755); err != nil {

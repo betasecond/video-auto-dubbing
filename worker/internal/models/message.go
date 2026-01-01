@@ -1,7 +1,5 @@
 package models
 
-import "time"
-
 // TaskMessage represents a task message from RabbitMQ.
 type TaskMessage struct {
 	TaskID    string                 `json:"task_id"`
