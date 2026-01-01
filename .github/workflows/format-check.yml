@@ -14,6 +14,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Set up Go
+        if: hashFiles('api/**/*.go', 'worker/**/*.go') != ''
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      
       - name: Check Go formatting
         if: hashFiles('api/**/*.go', 'worker/**/*.go') != ''
         run: |
@@ -21,7 +27,7 @@ jobs:
           failed=0
           
           for dir in api worker; do
-            if [ -d "$dir" ]; then
+            if [ -d "$dir" ] && [ -f "$dir/go.mod" ]; then
               echo "检查 $dir/..."
               cd "$dir"
               
@@ -43,6 +49,8 @@ jobs:
               fi
               
               cd ..
+            else
+              echo "ℹ️  $dir/ 目录不存在或没有 go.mod，跳过"
             fi
           done
           
@@ -68,7 +76,12 @@ jobs:
         working-directory: tts_service
         run: |
           echo "检查 Python 代码格式..."
-          uv sync --frozen
+          # 如果 uv.lock 不存在，使用 sync 而不是 sync --frozen
+          if [ -f "uv.lock" ]; then
+            uv sync --frozen
+          else
+            uv sync
+          fi
           uv run black --check . || {
             echo "❌ Python 代码未格式化"
             echo "请运行: cd tts_service && uv run black ."
