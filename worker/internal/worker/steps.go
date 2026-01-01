@@ -234,6 +234,8 @@ func (w *Worker) processTranslate(ctx context.Context, taskID uuid.UUID, msg mod
 
 	// TODO: Call GLM translation API
 	// For now, use mock translation
+	// Store translations in a map for later use
+	translations := make(map[int]string)
 	for _, seg := range segments {
 		var translatedText string
 		switch seg.srcText {
@@ -245,6 +247,9 @@ func (w *Worker) processTranslate(ctx context.Context, taskID uuid.UUID, msg mod
 			translatedText = seg.srcText // Fallback
 		}
 
+		// Store translation
+		translations[seg.idx] = translatedText
+
 		// Update segment with translation
 		updateQuery := `UPDATE segments SET mt_text = $1, updated_at = $2 WHERE task_id = $3 AND idx = $4`
 		if _, err := w.db.ExecContext(ctx, updateQuery, translatedText, time.Now(), taskID, seg.idx); err != nil {
@@ -254,6 +259,7 @@ func (w *Worker) processTranslate(ctx context.Context, taskID uuid.UUID, msg mod
 
 	// Publish TTS tasks for each segment
 	for _, seg := range segments {
+		translatedText := translations[seg.idx]
 		ttsMsg := map[string]interface{}{
 			"task_id":    taskID.String(),
 			"step":       "tts",

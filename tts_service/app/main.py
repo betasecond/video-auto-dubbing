@@ -1,9 +1,7 @@
 """FastAPI application entry point for TTS service."""
 
 import logging
-import os
 from pathlib import Path
-from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -22,14 +20,11 @@ from app.models import (
     BatchSynthesisRequest,
     BatchSynthesisResponse,
     BatchSynthesisSegment,
-    ErrorResponse,
     HealthResponse,
-    ProsodyControl,
     SpeakerInfo,
     SpeakersResponse,
     SynthesisRequest,
     SynthesisResponse,
-    TimeSegment,
 )
 from app.synthesizer import synthesizer
 
