@@ -2,14 +2,14 @@
 
 ## 服务概述
 
-TTS 服务基于 IndexTTS2 模型，提供 HTTP REST API 接口，支持时间轴约束的可控语音合成。
+TTS 服务通过魔搭(ModelScope)社区的 IndexTTS-2 API 提供语音合成能力，提供 HTTP REST API 接口，支持时间轴约束的可控语音合成。
 
 ## 技术栈
 
 - **框架**: FastAPI
 - **运行时**: Python 3.11+
 - **依赖管理**: uv
-- **模型**: IndexTTS2（B站开源）
+- **模型**: IndexTTS-2（通过 ModelScope API 调用）
 
 ## 工程结构
 
@@ -18,15 +18,13 @@ tts_service/
 ├── pyproject.toml          # uv 项目配置
 ├── uv.lock                 # 依赖锁定文件
 ├── README.md
-├── .env.example
 ├── app/
 │   ├── __init__.py
 │   ├── main.py             # FastAPI 应用入口
 │   ├── models.py           # 数据模型
-│   ├── synthesizer.py      # IndexTTS2 封装
-│   └── config.py           # 配置管理
-├── models/                 # IndexTTS2 模型文件
-│   └── ...
+│   ├── synthesizer.py      # ModelScope API 封装
+│   ├── config.py           # 配置管理
+│   └── exceptions.py       # 异常定义
 └── Dockerfile
 ```
 
@@ -356,45 +354,57 @@ uv sync --frozen  # 使用 uv.lock 锁定版本
 
 ## 配置管理
 
-### .env.example
+### 环境变量配置
+
+**必需配置**:
+- `MODELSCOPE_TOKEN`: ModelScope API 访问令牌（必需）
+  - 获取方式：登录 [ModelScope 官网](https://modelscope.cn)，在个人设置中生成 API Token
+  - **重要**: 不要将 token 提交到 git 仓库
+
+**可选配置**:
+- `MODELSCOPE_MODEL_ID`: ModelScope 模型 ID（默认: `IndexTeam/IndexTTS-2`）
+- `TTS_BACKEND`: 后端模式，`modelscope` 或 `mock`（默认: `modelscope`）
+- `STRICT_DURATION`: 是否严格对齐目标时长（默认: `false`）
+  - `true`: 使用音频时间拉伸强制对齐，可能影响音质
+  - `false`: 返回自然时长，质量优先
+- `MAX_CONCURRENT_REQUESTS`: 最大并发请求数（默认: `10`）
+- `MAX_RETRIES`: API 调用最大重试次数（默认: `3`）
+- `RETRY_DELAY_SECONDS`: 重试延迟（秒，默认: `1.0`）
+
+**服务配置**:
+- `TTS_HOST`: 服务监听地址（默认: `0.0.0.0`）
+- `TTS_PORT`: 服务端口（默认: `8000`）
+- `TTS_WORKERS`: Worker 数量（默认: `1`）
+- `DEFAULT_SAMPLE_RATE`: 默认采样率（默认: `22050`）
+- `DEFAULT_FORMAT`: 默认音频格式（默认: `wav`）
+- `AUDIO_TEMP_DIR`: 临时音频文件目录（默认: `./temp/audio`）
+- `AUDIO_TEMP_RETENTION_HOURS`: 临时文件保留时间（小时，默认: `24`）
+
+### 配置示例
 
 ```env
-# TTS Service
+# ModelScope API 配置（必需）
+MODELSCOPE_TOKEN=your_modelscope_token_here
+MODELSCOPE_MODEL_ID=IndexTeam/IndexTTS-2
+
+# TTS 服务配置
 TTS_HOST=0.0.0.0
 TTS_PORT=8000
-TTS_WORKERS=1
+TTS_BACKEND=modelscope
+STRICT_DURATION=false
 
-# IndexTTS2 Model
-MODEL_PATH=./models/index_tts2
-SPEAKER_EMBEDDING_PATH=./models/speaker_embeddings
-DEVICE=cuda  # cuda or cpu
+# 并发和重试配置
+MAX_CONCURRENT_REQUESTS=10
+MAX_RETRIES=3
+RETRY_DELAY_SECONDS=1.0
 
-# Audio Settings
+# 音频设置
 DEFAULT_SAMPLE_RATE=22050
 DEFAULT_FORMAT=wav
 
-# Storage
+# 存储配置
 AUDIO_TEMP_DIR=./temp/audio
 AUDIO_TEMP_RETENTION_HOURS=24
-```
-
-### 配置加载
-
-```python
-from pydantic_settings import BaseSettings
-
-class Settings(BaseSettings):
-    tts_host: str = "0.0.0.0"
-    tts_port: int = 8000
-    model_path: str = "./models/index_tts2"
-    device: str = "cuda"
-    default_sample_rate: int = 22050
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
-
-settings = Settings()
 ```
 
 ## 错误处理
@@ -406,6 +416,9 @@ settings = Settings()
 | `invalid_parameter` | 400 | 参数错误 |
 | `text_too_long` | 400 | 文本过长 |
 | `duration_mismatch` | 400 | 时长不匹配 |
+| `authentication_error` | 401 | ModelScope 认证失败（token 无效） |
+| `rate_limit_error` | 429 | API 调用频率超限 |
+| `modelscope_api_error` | 502 | ModelScope API 调用失败 |
 | `model_not_loaded` | 503 | 模型未加载 |
 | `synthesis_failed` | 500 | 合成失败 |
 | `internal_error` | 500 | 内部错误 |
@@ -424,16 +437,23 @@ settings = Settings()
 
 ## 性能优化建议
 
-1. **模型预热**: 服务启动时预加载模型
+1. **并发控制**: 通过 `MAX_CONCURRENT_REQUESTS` 限制并发请求数，避免触发 API 限流
 2. **批处理**: 支持批量合成减少调用次数
-3. **缓存**: 相同文本和参数的合成结果可以缓存
-4. **GPU 加速**: 使用 CUDA 加速推理
-5. **并发控制**: 限制同时处理的请求数，避免 OOM
+3. **缓存**: 相同文本和参数的合成结果可以缓存（待实现）
+4. **重试机制**: 自动重试失败的 API 调用，支持指数退避
+5. **时长策略**: 根据需求选择 `STRICT_DURATION` 模式
+   - 质量优先：`STRICT_DURATION=false`（推荐）
+   - 时长精确：`STRICT_DURATION=true`（可能影响音质）
 
 ## 部署注意事项
 
-1. **模型文件**: 确保模型文件在容器中可访问
-2. **GPU 支持**: 如需 GPU，使用 `nvidia-docker` 或 Docker 的 GPU 支持
-3. **资源限制**: 设置合适的内存和 CPU 限制
-4. **健康检查**: 实现 `/health` 接口用于容器健康检查
+1. **API Token**: 必须配置 `MODELSCOPE_TOKEN` 环境变量
+   - 从 [ModelScope 官网](https://modelscope.cn) 获取
+   - 不要在代码或配置文件中硬编码 token
+   - 使用环境变量或密钥管理服务
+2. **配额管理**: 注意 ModelScope API 的调用配额和限流策略
+3. **网络访问**: 确保服务可以访问 ModelScope API（可能需要代理）
+4. **资源限制**: 设置合适的内存和 CPU 限制
+5. **健康检查**: 实现 `/health` 接口用于容器健康检查
+6. **日志脱敏**: 确保日志中不包含 API token 等敏感信息
 

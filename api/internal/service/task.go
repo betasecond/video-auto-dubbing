@@ -30,6 +30,7 @@ type CreateTaskOptions struct {
 	ASRAppID        string
 	ASRToken        string
 	ASRCluster      string
+	ASRAPIKey       string
 	GLMAPIKey       string
 	GLMAPIURL       string
 	GLMModel        string
@@ -99,7 +100,7 @@ func (s *TaskService) CreateTask(ctx context.Context, file *multipart.FileHeader
 		INSERT INTO tasks (
 			id, status, progress,
 			source_video_key, source_language, target_language,
-			asr_appid, asr_token, asr_cluster,
+			asr_appid, asr_token, asr_cluster, asr_api_key,
 			glm_api_key, glm_api_url, glm_model,
 			modelscope_token,
 			created_at, updated_at
@@ -107,16 +108,16 @@ func (s *TaskService) CreateTask(ctx context.Context, file *multipart.FileHeader
 		VALUES (
 			$1, $2, $3,
 			$4, $5, $6,
-			$7, $8, $9,
-			$10, $11, $12,
-			$13,
-			$14, $15
+			$7, $8, $9, $10,
+			$11, $12, $13,
+			$14,
+			$15, $16
 		)
 	`
 	if _, err := s.db.ExecContext(ctx, query,
 		task.ID, task.Status, task.Progress, task.SourceVideoKey,
 		task.SourceLanguage, task.TargetLanguage,
-		toNullString(opts.ASRAppID), toNullString(opts.ASRToken), toNullString(opts.ASRCluster),
+		toNullString(opts.ASRAppID), toNullString(opts.ASRToken), toNullString(opts.ASRCluster), toNullString(opts.ASRAPIKey),
 		toNullString(opts.GLMAPIKey), toNullString(opts.GLMAPIURL), toNullString(opts.GLMModel),
 		toNullString(opts.ModelScopeToken),
 		task.CreatedAt, task.UpdatedAt,
@@ -156,7 +157,7 @@ func (s *TaskService) GetTaskWithSteps(ctx context.Context, taskID uuid.UUID) (*
 	var task models.Task
 	query := `
 		SELECT id, status, progress, error, source_video_key, source_language, target_language,
-		       asr_appid, asr_token, asr_cluster,
+		       asr_appid, asr_token, asr_cluster, asr_api_key,
 		       glm_api_key, glm_api_url, glm_model,
 		       modelscope_token,
 		       output_video_key, created_at, updated_at
@@ -165,7 +166,7 @@ func (s *TaskService) GetTaskWithSteps(ctx context.Context, taskID uuid.UUID) (*
 	err := s.db.QueryRowContext(ctx, query, taskID).Scan(
 		&task.ID, &task.Status, &task.Progress, &task.Error,
 		&task.SourceVideoKey, &task.SourceLanguage, &task.TargetLanguage,
-		&task.ASRAppID, &task.ASRToken, &task.ASRCluster,
+		&task.ASRAppID, &task.ASRToken, &task.ASRCluster, &task.ASRAPIKey,
 		&task.GLMAPIKey, &task.GLMAPIURL, &task.GLMModel,
 		&task.ModelScopeToken,
 		&task.OutputVideoKey, &task.CreatedAt, &task.UpdatedAt,

@@ -42,3 +42,20 @@ class InternalError(TTSServiceException):
 
     pass
 
+
+class ModelScopeAPIError(TTSServiceException):
+    """Raised when ModelScope API call fails."""
+
+    pass
+
+
+class AuthenticationError(TTSServiceException):
+    """Raised when authentication fails (e.g., invalid token)."""
+
+    pass
+
+
+class RateLimitError(TTSServiceException):
+    """Raised when API rate limit is exceeded."""
+
+    pass

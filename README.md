@@ -57,16 +57,21 @@ cd vedio
 ```bash
 # 创建环境变量文件（如果不存在）
 # 设置必要的配置，特别是外部 API 密钥：
-# - MODELSCOPE_TOKEN: ModelScope API 访问令牌（必需）
-# - VOLCENGINE_ASR_ACCESS_KEY: 火山引擎 ASR Access Key
-# - VOLCENGINE_ASR_SECRET_KEY: 火山引擎 ASR Secret Key
-# - GLM_API_KEY: GLM 翻译 API Key
-# - GLM_API_URL: GLM API 地址
+# - ASR_API_KEY: 火山引擎豆包语音 ASR API Key（推荐通过前端设置）
+# - GLM_API_KEY: 智谱 GLM 翻译 API Key（推荐通过前端设置）
+# - GLM_API_URL: GLM API 地址（默认 https://open.bigmodel.cn/api/paas/v4/chat/completions）
 # - GLM_MODEL: GLM 模型名（默认 glm-4.5）
+# - MODELSCOPE_TOKEN: ModelScope API 访问令牌（推荐通过前端设置）
+# - MINIO_PUBLIC_ENDPOINT: MinIO 外部可访问地址（如果豆包语音需要从外网访问音频文件）
 ```
 
 **重要**: 
-- ModelScope Token 获取方式：登录 [ModelScope 官网](https://modelscope.cn)，在个人设置中生成 API Token
+- **推荐方式**：在前端"设置"页面输入 API Key，系统会随任务保存并使用。环境变量仅作为后备。
+- API Key 获取方式：
+  - 豆包语音 ASR: 登录 [火山引擎控制台](https://console.volcengine.com/speech/app) 获取 API Key
+  - 智谱 GLM: 登录 [智谱 AI 开放平台](https://open.bigmodel.cn/) 获取 API Key
+  - ModelScope: 登录 [ModelScope 官网](https://modelscope.cn)，在个人设置中生成 API Token
+- **MINIO_PUBLIC_ENDPOINT**: 如果你的 MinIO 部署在内网，但豆包语音 ASR 服务需要从外网下载音频，请配置为可公网访问的 MinIO 地址（如 `minio.example.com:9000` 或反向代理地址）
 - 不要将 API 密钥提交到 git 仓库
 
 > 说明：本仓库提供 `env.example` 作为环境变量示例（部分环境会限制使用 dotfile，例如 `.env.example`）。你可以将 `env.example` 复制为 `.env`（如果环境支持），或按需导入为系统环境变量。

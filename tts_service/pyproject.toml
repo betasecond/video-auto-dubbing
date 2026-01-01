@@ -1,7 +1,7 @@
 [project]
 name = "tts-service"
 version = "0.1.0"
-description = "IndexTTS2 based TTS service for video dubbing"
+description = "IndexTTS2 based TTS service for video dubbing via ModelScope API"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.104.0",
@@ -9,8 +9,7 @@ dependencies = [
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
     "numpy>=1.24.0",
-    "torch>=2.1.0",
-    "torchaudio>=2.1.0",
+    "modelscope>=1.9.0",
     "librosa>=0.10.0",
     "soundfile>=0.12.0",
     "scipy>=1.11.0",

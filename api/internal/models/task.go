@@ -30,6 +30,7 @@ type Task struct {
 	ASRAppID        *string `json:"-" db:"asr_appid"`
 	ASRToken        *string `json:"-" db:"asr_token"`
 	ASRCluster      *string `json:"-" db:"asr_cluster"`
+	ASRAPIKey       *string `json:"-" db:"asr_api_key"`
 	GLMAPIKey       *string `json:"-" db:"glm_api_key"`
 	GLMAPIURL       *string `json:"-" db:"glm_api_url"`
 	GLMModel        *string `json:"-" db:"glm_model"`

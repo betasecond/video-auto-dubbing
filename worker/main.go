@@ -52,7 +52,11 @@ func main() {
 	logger.Info("MinIO client initialized successfully")
 
 	// Initialize storage service
-	storageService := storage.New(minioClient, cfg.MinIO.Bucket)
+	publicEndpoint := cfg.MinIO.PublicEndpoint
+	if publicEndpoint == "" {
+		publicEndpoint = cfg.MinIO.Endpoint
+	}
+	storageService := storage.New(minioClient, cfg.MinIO.Bucket, publicEndpoint)
 
 	// Initialize RabbitMQ connection
 	queueConn, err := queue.NewConnection(cfg.RabbitMQ)

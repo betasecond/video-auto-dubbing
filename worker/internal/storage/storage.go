@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"time"
 
 	"vedio/worker/internal/minio"
@@ -13,15 +14,17 @@ import (
 
 // Service handles file storage operations.
 type Service struct {
-	client *minio.Client
-	bucket string
+	client         *minio.Client
+	bucket         string
+	publicEndpoint string // 外部可访问的 MinIO 端点（用于 presigned URL）
 }
 
 // New creates a new storage service.
-func New(client *minio.Client, bucket string) *Service {
+func New(client *minio.Client, bucket string, publicEndpoint string) *Service {
 	return &Service{
-		client: client,
-		bucket: bucket,
+		client:         client,
+		bucket:         bucket,
+		publicEndpoint: publicEndpoint,
 	}
 }
 
@@ -68,5 +71,27 @@ func (s *Service) DeleteObject(ctx context.Context, key string) error {
 		return fmt.Errorf("failed to delete object: %w", err)
 	}
 	return nil
+}
+
+// PresignedGetURL generates a presigned URL for external access (e.g., for ASR services).
+// If publicEndpoint is set, it replaces the host in the presigned URL to make it accessible externally.
+func (s *Service) PresignedGetURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
+	// Generate presigned URL using MinIO SDK
+	presignedURL, err := s.client.PresignedGetObject(ctx, s.bucket, key, expiry, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+	}
+
+	// If publicEndpoint is configured, replace the host
+	if s.publicEndpoint != "" {
+		parsedURL, err := url.Parse(presignedURL.String())
+		if err != nil {
+			return "", fmt.Errorf("failed to parse presigned URL: %w", err)
+		}
+		parsedURL.Host = s.publicEndpoint
+		return parsedURL.String(), nil
+	}
+
+	return presignedURL.String(), nil
 }
 

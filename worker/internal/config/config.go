@@ -28,11 +28,12 @@ type DatabaseConfig struct {
 
 // MinIOConfig holds MinIO configuration.
 type MinIOConfig struct {
-	Endpoint  string
-	AccessKey string
-	SecretKey string
-	UseSSL    bool
-	Bucket    string
+	Endpoint       string
+	PublicEndpoint string // External endpoint for presigned URLs (豆包语音等外部服务可访问)
+	AccessKey      string
+	SecretKey      string
+	UseSSL         bool
+	Bucket         string
 }
 
 // RabbitMQConfig holds RabbitMQ configuration.
@@ -82,6 +83,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("DB_PASSWORD", "dubbing123")
 	viper.SetDefault("DB_SSLMODE", "disable")
 	viper.SetDefault("MINIO_ENDPOINT", "localhost:9000")
+	viper.SetDefault("MINIO_PUBLIC_ENDPOINT", "") // If empty, use MINIO_ENDPOINT
 	viper.SetDefault("MINIO_ACCESS_KEY", "minioadmin")
 	viper.SetDefault("MINIO_SECRET_KEY", "minioadmin123")
 	viper.SetDefault("MINIO_USE_SSL", false)
@@ -103,11 +105,12 @@ func Load() (*Config, error) {
 			SSLMode:  viper.GetString("DB_SSLMODE"),
 		},
 		MinIO: MinIOConfig{
-			Endpoint:  viper.GetString("MINIO_ENDPOINT"),
-			AccessKey: viper.GetString("MINIO_ACCESS_KEY"),
-			SecretKey: viper.GetString("MINIO_SECRET_KEY"),
-			UseSSL:    viper.GetBool("MINIO_USE_SSL"),
-			Bucket:    viper.GetString("MINIO_BUCKET"),
+			Endpoint:       viper.GetString("MINIO_ENDPOINT"),
+			PublicEndpoint: viper.GetString("MINIO_PUBLIC_ENDPOINT"),
+			AccessKey:      viper.GetString("MINIO_ACCESS_KEY"),
+			SecretKey:      viper.GetString("MINIO_SECRET_KEY"),
+			UseSSL:         viper.GetBool("MINIO_USE_SSL"),
+			Bucket:         viper.GetString("MINIO_BUCKET"),
 		},
 		RabbitMQ: RabbitMQConfig{
 			URL: viper.GetString("RABBITMQ_URL"),

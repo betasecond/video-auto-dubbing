@@ -62,12 +62,18 @@ STRICT_DURATION=false  # 是否严格对齐时长（true/false）
 MAX_CONCURRENT_REQUESTS=10  # 最大并发请求数
 MAX_RETRIES=3  # API 调用最大重试次数
 
-# 外部 API 配置（必填）
-VOLCENGINE_ASR_ACCESS_KEY=your_volcengine_key
-VOLCENGINE_ASR_SECRET_KEY=your_volcengine_secret
+# 外部 API 配置（推荐通过前端设置页面配置，环境变量作为后备）
+# 豆包语音 ASR API Key（新版，使用 x-api-key 鉴权）
+ASR_API_KEY=your_asr_api_key
+
+# 智谱 GLM 翻译 API 配置
 GLM_API_KEY=your_glm_api_key
 GLM_API_URL=https://open.bigmodel.cn/api/paas/v4/chat/completions
 GLM_MODEL=glm-4.5
+
+# MinIO 公网访问地址（可选，如果豆包语音需要从外网下载音频）
+# 例如：minio.example.com:9000 或反向代理地址
+MINIO_PUBLIC_ENDPOINT=
 
 # 网关配置
 GATEWAY_HTTP_PORT=80

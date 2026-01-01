@@ -34,6 +34,7 @@ type CreateTaskRequest struct {
 	ASRAppID        string `form:"asr_appid" binding:"omitempty"`
 	ASRToken        string `form:"asr_token" binding:"omitempty"`
 	ASRCluster      string `form:"asr_cluster" binding:"omitempty"`
+	ASRAPIKey       string `form:"asr_api_key" binding:"omitempty"`
 	GLMAPIKey       string `form:"glm_api_key" binding:"omitempty"`
 	GLMAPIURL       string `form:"glm_api_url" binding:"omitempty"`
 	GLMModel        string `form:"glm_model" binding:"omitempty"`
@@ -82,6 +83,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 		ASRAppID:        req.ASRAppID,
 		ASRToken:        req.ASRToken,
 		ASRCluster:      req.ASRCluster,
+		ASRAPIKey:       req.ASRAPIKey,
 		GLMAPIKey:       req.GLMAPIKey,
 		GLMAPIURL:       req.GLMAPIURL,
 		GLMModel:        req.GLMModel,
