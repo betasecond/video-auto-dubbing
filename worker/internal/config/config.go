@@ -61,6 +61,7 @@ type VolcEngineASRConfig struct {
 type GLMConfig struct {
 	APIKey string
 	APIURL string
+	Model  string
 }
 
 // FFmpegConfig holds FFmpeg configuration.
@@ -87,7 +88,9 @@ func Load() (*Config, error) {
 	viper.SetDefault("MINIO_BUCKET", "videos")
 	viper.SetDefault("RABBITMQ_URL", "amqp://rabbitmq:rabbitmq123@localhost:5672/")
 	viper.SetDefault("TTS_SERVICE_URL", "http://localhost:8000")
-	viper.SetDefault("GLM_API_URL", "https://api.example.com/glm")
+	// ZhipuAI BigModel chat completions endpoint
+	viper.SetDefault("GLM_API_URL", "https://open.bigmodel.cn/api/paas/v4/chat/completions")
+	viper.SetDefault("GLM_MODEL", "glm-4.5")
 	viper.SetDefault("FFMPEG_PATH", "/usr/bin/ffmpeg")
 
 	cfg := &Config{
@@ -120,6 +123,7 @@ func Load() (*Config, error) {
 			GLM: GLMConfig{
 				APIKey: viper.GetString("GLM_API_KEY"),
 				APIURL: viper.GetString("GLM_API_URL"),
+				Model:  viper.GetString("GLM_MODEL"),
 			},
 		},
 		FFmpeg: FFmpegConfig{

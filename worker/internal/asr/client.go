@@ -52,7 +52,7 @@ func (c *Client) Recognize(ctx context.Context, audioReader io.Reader, language 
 		"app_id": "default",
 		"language": language,
 		"audio_format": "wav",
-		"sample_rate": 22050,
+		"sample_rate": 16000,
 		"audio_data": hex.EncodeToString(audioData),
 	}
 

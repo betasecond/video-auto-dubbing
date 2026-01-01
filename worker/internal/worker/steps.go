@@ -59,7 +59,7 @@ func (w *Worker) processExtractAudio(ctx context.Context, taskID uuid.UUID, msg 
 		"-i", videoPath,
 		"-vn",           // No video
 		"-acodec", "pcm_s16le", // PCM 16-bit
-		"-ar", "22050",  // Sample rate
+		"-ar", "16000",  // Sample rate (ASR recommended)
 		"-ac", "1",      // Mono
 		"-y",            // Overwrite
 		audioPath,
@@ -307,8 +307,8 @@ func (w *Worker) processTranslate(ctx context.Context, taskID uuid.UUID, msg mod
 	}
 
 	// Publish TTS tasks for each segment
-	for _, seg := range segments {
-		translatedText := translations[seg.idx]
+	for i, seg := range segments {
+		translatedText := translations[i]
 		targetDur := segDurations[seg.idx]
 		if targetDur == 0 {
 			targetDur = 1500 // Default fallback
@@ -558,7 +558,10 @@ func (w *Worker) mergeSegmentAudios(ctx context.Context, taskID uuid.UUID) error
 		"-f", "concat",
 		"-safe", "0",
 		"-i", concatFile,
-		"-c", "copy",
+		// Re-encode to ensure a valid WAV container after concatenation
+		"-c:a", "pcm_s16le",
+		"-ar", "22050",
+		"-ac", "1",
 		"-y",
 		outputPath,
 	)

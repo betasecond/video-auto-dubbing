@@ -10,7 +10,7 @@
 
 - ✅ **ASR 语音识别**: 使用抖音火山引擎 ASR 模型进行带时间戳的语音识别
 - ✅ **机器翻译**: 利用 GLM 模型进行跨语言翻译
-- ✅ **可控 TTS**: 基于 B 站开源的 IndexTTS2 模型实现受时间轴约束的可控语音合成
+- ✅ **可控 TTS**: 通过魔搭(ModelScope)社区的 IndexTTS-2 API 实现受时间轴约束的可控语音合成
 - ✅ **音画同步**: 通过时间轴约束解决跨语言配音时音画不同步的问题
 - ✅ **微服务架构**: Go 语言后端，模块解耦，易于扩展
 - ✅ **异步处理**: RabbitMQ 任务队列，支持高并发和任务重试
@@ -29,7 +29,7 @@
 - **语言**: Python 3.11+
 - **框架**: FastAPI
 - **依赖管理**: uv
-- **模型**: IndexTTS2
+- **模型**: IndexTTS-2（通过 ModelScope API 调用）
 
 ### 基础设施
 - **容器化**: Docker + Docker Compose
@@ -55,9 +55,21 @@ cd vedio
 
 2. **配置环境变量**
 ```bash
-cp .env.example .env
-# 编辑 .env 文件，设置必要的配置（特别是外部 API 密钥）
+# 创建环境变量文件（如果不存在）
+# 设置必要的配置，特别是外部 API 密钥：
+# - MODELSCOPE_TOKEN: ModelScope API 访问令牌（必需）
+# - VOLCENGINE_ASR_ACCESS_KEY: 火山引擎 ASR Access Key
+# - VOLCENGINE_ASR_SECRET_KEY: 火山引擎 ASR Secret Key
+# - GLM_API_KEY: GLM 翻译 API Key
+# - GLM_API_URL: GLM API 地址
+# - GLM_MODEL: GLM 模型名（默认 glm-4.5）
 ```
+
+**重要**: 
+- ModelScope Token 获取方式：登录 [ModelScope 官网](https://modelscope.cn)，在个人设置中生成 API Token
+- 不要将 API 密钥提交到 git 仓库
+
+> 说明：本仓库提供 `env.example` 作为环境变量示例（部分环境会限制使用 dotfile，例如 `.env.example`）。你可以将 `env.example` 复制为 `.env`（如果环境支持），或按需导入为系统环境变量。
 
 3. **启动服务**
 ```bash

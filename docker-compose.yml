@@ -88,7 +88,8 @@ services:
       VOLCENGINE_ASR_ACCESS_KEY: ${VOLCENGINE_ASR_ACCESS_KEY}
       VOLCENGINE_ASR_SECRET_KEY: ${VOLCENGINE_ASR_SECRET_KEY}
       GLM_API_KEY: ${GLM_API_KEY}
-      GLM_API_URL: ${GLM_API_URL:-https://api.example.com/glm}
+      GLM_API_URL: ${GLM_API_URL:-https://open.bigmodel.cn/api/paas/v4/chat/completions}
+      GLM_MODEL: ${GLM_MODEL:-glm-4.5}
       # TTS 服务配置
       TTS_SERVICE_URL: http://tts_service:8000
       # 服务配置
@@ -135,7 +136,8 @@ services:
       VOLCENGINE_ASR_ACCESS_KEY: ${VOLCENGINE_ASR_ACCESS_KEY}
       VOLCENGINE_ASR_SECRET_KEY: ${VOLCENGINE_ASR_SECRET_KEY}
       GLM_API_KEY: ${GLM_API_KEY}
-      GLM_API_URL: ${GLM_API_URL:-https://api.example.com/glm}
+      GLM_API_URL: ${GLM_API_URL:-https://open.bigmodel.cn/api/paas/v4/chat/completions}
+      GLM_MODEL: ${GLM_MODEL:-glm-4.5}
       # TTS 服务配置
       TTS_SERVICE_URL: http://tts_service:8000
       # FFmpeg 配置

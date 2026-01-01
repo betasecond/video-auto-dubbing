@@ -18,10 +18,12 @@ cd vedio
 
 2. **配置环境变量**
 
-复制 `.env.example` 为 `.env` 并修改配置：
+本仓库提供 `env.example` 作为环境变量示例（部分环境会限制使用 dotfile，例如 `.env.example`）。
+
+如果你的环境支持 `.env` 文件，可以将示例复制为 `.env`：
 
 ```bash
-cp .env.example .env
+cp env.example .env
 ```
 
 编辑 `.env` 文件，设置必要的配置：
@@ -51,13 +53,21 @@ API_PORT=8080
 
 # TTS 服务配置
 TTS_PORT=8000
-TTS_DEVICE=cpu  # 或 cuda（如果有 GPU）
+TTS_BACKEND=modelscope  # 或 mock（用于测试）
+
+# ModelScope API 配置（必填）
+MODELSCOPE_TOKEN=your_modelscope_token  # 从 https://modelscope.cn 获取
+MODELSCOPE_MODEL_ID=IndexTeam/IndexTTS-2  # 可选，默认值
+STRICT_DURATION=false  # 是否严格对齐时长（true/false）
+MAX_CONCURRENT_REQUESTS=10  # 最大并发请求数
+MAX_RETRIES=3  # API 调用最大重试次数
 
 # 外部 API 配置（必填）
 VOLCENGINE_ASR_ACCESS_KEY=your_volcengine_key
 VOLCENGINE_ASR_SECRET_KEY=your_volcengine_secret
 GLM_API_KEY=your_glm_api_key
-GLM_API_URL=https://api.example.com/glm
+GLM_API_URL=https://open.bigmodel.cn/api/paas/v4/chat/completions
+GLM_MODEL=glm-4.5
 
 # 网关配置
 GATEWAY_HTTP_PORT=80
@@ -148,7 +158,7 @@ worker -> db, minio, rabbitmq, tts_service
 | `postgres_data` | PostgreSQL 数据 | `/var/lib/postgresql/data` |
 | `minio_data` | MinIO 对象存储 | `/data` |
 | `rabbitmq_data` | RabbitMQ 数据 | `/var/lib/rabbitmq` |
-| `tts_models` | TTS 模型文件 | `/app/models` |
+| `tts_temp` | TTS 临时文件 | `/app/temp` |
 | `api_logs` | API 服务日志 | `/app/logs` |
 | `worker_logs` | Worker 服务日志 | `/app/logs` |
 
@@ -321,7 +331,8 @@ docker compose logs -f worker
    - 优化存储桶结构
 
 4. **TTS 服务优化**
-   - 使用 GPU 加速（如果可用）
-   - 启用模型缓存
-   - 优化批处理大小
+   - 调整 `MAX_CONCURRENT_REQUESTS` 避免触发 API 限流
+   - 根据需求选择 `STRICT_DURATION` 模式（质量 vs 时长精确度）
+   - 监控 ModelScope API 调用配额和限流情况
+   - 优化批处理大小（分段合成）
 
