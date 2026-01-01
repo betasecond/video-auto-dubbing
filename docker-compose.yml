@@ -1,0 +1,229 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库
+  db:
+    image: postgres:15-alpine
+    container_name: video-dubbing-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dubbing}
+      POSTGRES_USER: ${POSTGRES_USER:-dubbing}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dubbing123}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dubbing}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dubbing-network
+
+  # MinIO 对象存储
+  minio:
+    image: minio/minio:latest
+    container_name: video-dubbing-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - dubbing-network
+
+  # RabbitMQ 消息队列
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: video-dubbing-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-rabbitmq}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-rabbitmq123}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - dubbing-network
+
+  # API 服务（Go）
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: video-dubbing-api
+    environment:
+      # 数据库配置
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-dubbing}
+      DB_USER: ${POSTGRES_USER:-dubbing}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-dubbing123}
+      # MinIO 配置
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_USE_SSL: "false"
+      MINIO_BUCKET: ${MINIO_BUCKET:-videos}
+      # RabbitMQ 配置
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-rabbitmq}:${RABBITMQ_PASSWORD:-rabbitmq123}@rabbitmq:5672/
+      # 外部 API 配置
+      VOLCENGINE_ASR_ACCESS_KEY: ${VOLCENGINE_ASR_ACCESS_KEY}
+      VOLCENGINE_ASR_SECRET_KEY: ${VOLCENGINE_ASR_SECRET_KEY}
+      GLM_API_KEY: ${GLM_API_KEY}
+      GLM_API_URL: ${GLM_API_URL:-https://api.example.com/glm}
+      # TTS 服务配置
+      TTS_SERVICE_URL: http://tts_service:8000
+      # 服务配置
+      API_PORT: 8080
+      API_HOST: 0.0.0.0
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./api:/app
+      - api_logs:/app/logs
+    networks:
+      - dubbing-network
+    restart: unless-stopped
+
+  # Worker 服务（Go）
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    container_name: video-dubbing-worker
+    environment:
+      # 数据库配置
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-dubbing}
+      DB_USER: ${POSTGRES_USER:-dubbing}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-dubbing123}
+      # MinIO 配置
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_USE_SSL: "false"
+      MINIO_BUCKET: ${MINIO_BUCKET:-videos}
+      # RabbitMQ 配置
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-rabbitmq}:${RABBITMQ_PASSWORD:-rabbitmq123}@rabbitmq:5672/
+      # 外部 API 配置
+      VOLCENGINE_ASR_ACCESS_KEY: ${VOLCENGINE_ASR_ACCESS_KEY}
+      VOLCENGINE_ASR_SECRET_KEY: ${VOLCENGINE_ASR_SECRET_KEY}
+      GLM_API_KEY: ${GLM_API_KEY}
+      GLM_API_URL: ${GLM_API_URL:-https://api.example.com/glm}
+      # TTS 服务配置
+      TTS_SERVICE_URL: http://tts_service:8000
+      # FFmpeg 配置
+      FFMPEG_PATH: /usr/bin/ffmpeg
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      tts_service:
+        condition: service_healthy
+    volumes:
+      - ./worker:/app
+      - worker_logs:/app/logs
+    networks:
+      - dubbing-network
+    restart: unless-stopped
+    # 注意：可以通过 scale 命令扩展多个 worker 实例
+    # docker compose up --scale worker=3
+
+  # TTS 服务（Python）
+  tts_service:
+    build:
+      context: ./tts_service
+      dockerfile: Dockerfile
+    container_name: video-dubbing-tts
+    environment:
+      TTS_HOST: 0.0.0.0
+      TTS_PORT: 8000
+      TTS_WORKERS: ${TTS_WORKERS:-1}
+      MODEL_PATH: /app/models/index_tts2
+      SPEAKER_EMBEDDING_PATH: /app/models/speaker_embeddings
+      DEVICE: ${TTS_DEVICE:-cpu}
+      DEFAULT_SAMPLE_RATE: 22050
+      DEFAULT_FORMAT: wav
+      AUDIO_TEMP_DIR: /app/temp/audio
+      AUDIO_TEMP_RETENTION_HOURS: 24
+    ports:
+      - "${TTS_PORT:-8000}:8000"
+    volumes:
+      - ./tts_service:/app
+      - tts_models:/app/models
+      - tts_temp:/app/temp
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - dubbing-network
+    restart: unless-stopped
+
+  # NGINX 网关
+  gateway:
+    image: nginx:alpine
+    container_name: video-dubbing-gateway
+    ports:
+      - "${GATEWAY_HTTP_PORT:-80}:80"
+      - "${GATEWAY_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./gateway/ssl:/etc/nginx/ssl:ro
+      - ./web/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - api
+      - tts_service
+    networks:
+      - dubbing-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  api_logs:
+    driver: local
+  worker_logs:
+    driver: local
+  tts_models:
+    driver: local
+  tts_temp:
+    driver: local
+
+networks:
+  dubbing-network:
+    driver: bridge
+
