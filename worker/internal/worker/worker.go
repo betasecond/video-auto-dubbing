@@ -1,0 +1,325 @@
+package worker
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"vedio/worker/internal/config"
+	"vedio/worker/internal/database"
+	"vedio/worker/internal/models"
+	"vedio/worker/internal/queue"
+	"vedio/worker/internal/storage"
+
+	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+const (
+	exchangeName = "task_exchange"
+	exchangeType = "topic"
+	maxRetries   = 3
+)
+
+// Worker handles task processing.
+type Worker struct {
+	db        *database.DB
+	storage   *storage.Service
+	publisher *queue.Publisher
+	config    *config.Config
+	logger    *zap.Logger
+}
+
+// New creates a new worker.
+func New(db *database.DB, storage *storage.Service, publisher *queue.Publisher, cfg *config.Config, logger *zap.Logger) *Worker {
+	return &Worker{
+		db:        db,
+		storage:   storage,
+		publisher: publisher,
+		config:    cfg,
+		logger:    logger,
+	}
+}
+
+// StartConsumer starts consuming messages for a specific step.
+func (w *Worker) StartConsumer(ctx context.Context, step string) error {
+	conn := w.publisher.Conn()
+	ch, err := conn.Channel()
+	if err != nil {
+		return fmt.Errorf("failed to open channel: %w", err)
+	}
+	defer ch.Close()
+
+	// Declare exchange
+	if err := ch.ExchangeDeclare(
+		exchangeName,
+		exchangeType,
+		true,
+		false,
+		false,
+		false,
+		nil,
+	); err != nil {
+		return fmt.Errorf("failed to declare exchange: %w", err)
+	}
+
+	// Declare queue
+	queueName := fmt.Sprintf("task.%s", step)
+	q, err := ch.QueueDeclare(
+		queueName,
+		true,  // durable
+		false, // delete when unused
+		false, // exclusive
+		false, // no-wait
+		nil,   // arguments
+	)
+	if err != nil {
+		return fmt.Errorf("failed to declare queue: %w", err)
+	}
+
+	// Bind queue to exchange
+	routingKey := fmt.Sprintf("task.%s", step)
+	if err := ch.QueueBind(
+		q.Name,
+		routingKey,
+		exchangeName,
+		false,
+		nil,
+	); err != nil {
+		return fmt.Errorf("failed to bind queue: %w", err)
+	}
+
+	// Set QoS - only process one message at a time
+	if err := ch.Qos(1, 0, false); err != nil {
+		return fmt.Errorf("failed to set QoS: %w", err)
+	}
+
+	// Start consuming
+	msgs, err := ch.Consume(
+		q.Name,
+		"",
+		false, // auto-ack
+		false, // exclusive
+		false, // no-local
+		false, // no-wait
+		nil,   // args
+	)
+	if err != nil {
+		return fmt.Errorf("failed to register consumer: %w", err)
+	}
+
+	w.logger.Info("Started consumer", zap.String("step", step), zap.String("queue", q.Name))
+
+	// Process messages
+	for {
+		select {
+		case <-ctx.Done():
+			w.logger.Info("Stopping consumer", zap.String("step", step))
+			return nil
+		case msg, ok := <-msgs:
+			if !ok {
+				return fmt.Errorf("consumer channel closed")
+			}
+
+			if err := w.processMessage(ctx, step, msg); err != nil {
+				w.logger.Error("Failed to process message",
+					zap.String("step", step),
+					zap.Error(err),
+					zap.String("message_id", msg.MessageId),
+				)
+				// Nack and don't requeue - will be handled by retry logic
+				_ = msg.Nack(false, false)
+			} else {
+				// Ack on success
+				_ = msg.Ack(false)
+			}
+		}
+	}
+}
+
+// processMessage processes a single message.
+func (w *Worker) processMessage(ctx context.Context, step string, msg amqp.Delivery) error {
+	var taskMsg models.TaskMessage
+	if err := json.Unmarshal(msg.Body, &taskMsg); err != nil {
+		return fmt.Errorf("failed to unmarshal message: %w", err)
+	}
+
+	taskID, err := uuid.Parse(taskMsg.TaskID)
+	if err != nil {
+		return fmt.Errorf("invalid task_id: %w", err)
+	}
+
+	w.logger.Info("Processing message",
+		zap.String("step", step),
+		zap.String("task_id", taskID.String()),
+		zap.Int("attempt", taskMsg.Attempt),
+		zap.String("trace_id", taskMsg.TraceID),
+	)
+
+	// Check if step is already completed (idempotency)
+	stepStatus, err := w.getStepStatus(ctx, taskID, step)
+	if err == nil && stepStatus == "succeeded" {
+		w.logger.Info("Step already succeeded, skipping",
+			zap.String("step", step),
+			zap.String("task_id", taskID.String()),
+		)
+		return nil
+	}
+
+	// Update step status to running
+	if err := w.updateStepStatus(ctx, taskID, step, taskMsg.Attempt, "running", nil); err != nil {
+		return fmt.Errorf("failed to update step status: %w", err)
+	}
+
+	// Process the step
+	startTime := time.Now()
+	var processErr error
+
+	switch step {
+	case "extract_audio":
+		processErr = w.processExtractAudio(ctx, taskID, taskMsg)
+	case "asr":
+		processErr = w.processASR(ctx, taskID, taskMsg)
+	case "translate":
+		processErr = w.processTranslate(ctx, taskID, taskMsg)
+	case "tts":
+		processErr = w.processTTS(ctx, taskID, taskMsg)
+	case "mux_video":
+		processErr = w.processMuxVideo(ctx, taskID, taskMsg)
+	default:
+		processErr = fmt.Errorf("unknown step: %s", step)
+	}
+
+	duration := time.Since(startTime)
+
+	if processErr != nil {
+		// Update step status to failed
+		errMsg := processErr.Error()
+		if err := w.updateStepStatus(ctx, taskID, step, taskMsg.Attempt, "failed", &errMsg); err != nil {
+			w.logger.Error("Failed to update step status", zap.Error(err))
+		}
+
+		// Retry logic
+		if taskMsg.Attempt < maxRetries {
+			return w.retryMessage(ctx, taskMsg, step)
+		}
+
+		// Max retries reached, update task status
+		if err := w.updateTaskStatus(ctx, taskID, "failed", &errMsg); err != nil {
+			w.logger.Error("Failed to update task status", zap.Error(err))
+		}
+
+		return fmt.Errorf("step failed after %d attempts: %w", taskMsg.Attempt, processErr)
+	}
+
+	// Update step status to succeeded
+	metrics := map[string]interface{}{
+		"duration_ms": duration.Milliseconds(),
+	}
+	metricsJSON, _ := json.Marshal(metrics)
+	metricsStr := string(metricsJSON)
+	if err := w.updateStepStatus(ctx, taskID, step, taskMsg.Attempt, "succeeded", nil); err != nil {
+		return fmt.Errorf("failed to update step status: %w", err)
+	}
+
+	w.logger.Info("Step completed successfully",
+		zap.String("step", step),
+		zap.String("task_id", taskID.String()),
+		zap.Duration("duration", duration),
+	)
+
+	return nil
+}
+
+// getStepStatus gets the status of a task step.
+func (w *Worker) getStepStatus(ctx context.Context, taskID uuid.UUID, step string) (string, error) {
+	query := `SELECT status FROM task_steps WHERE task_id = $1 AND step = $2 ORDER BY attempt DESC LIMIT 1`
+	var status string
+	err := w.db.QueryRowContext(ctx, query, taskID, step).Scan(&status)
+	return status, err
+}
+
+// updateStepStatus updates the status of a task step.
+func (w *Worker) updateStepStatus(ctx context.Context, taskID uuid.UUID, step string, attempt int, status string, errorMsg *string) error {
+	now := time.Now()
+
+	// Check if step record exists
+	var exists bool
+	checkQuery := `SELECT EXISTS(SELECT 1 FROM task_steps WHERE task_id = $1 AND step = $2 AND attempt = $3)`
+	if err := w.db.QueryRowContext(ctx, checkQuery, taskID, step, attempt).Scan(&exists); err != nil {
+		return fmt.Errorf("failed to check step existence: %w", err)
+	}
+
+	if !exists {
+		// Insert new step record
+		insertQuery := `
+			INSERT INTO task_steps (task_id, step, status, attempt, started_at, error, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`
+		_, err := w.db.ExecContext(ctx, insertQuery,
+			taskID, step, status, attempt, now, errorMsg, now, now,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to insert step: %w", err)
+		}
+	} else {
+		// Update existing step record
+		updateQuery := `
+			UPDATE task_steps
+			SET status = $1, error = $2, updated_at = $3
+			WHERE task_id = $4 AND step = $5 AND attempt = $6
+		`
+		if status == "succeeded" || status == "failed" {
+			updateQuery = `
+				UPDATE task_steps
+				SET status = $1, error = $2, ended_at = $3, updated_at = $4
+				WHERE task_id = $5 AND step = $6 AND attempt = $7
+			`
+			_, err := w.db.ExecContext(ctx, updateQuery,
+				status, errorMsg, now, now, taskID, step, attempt,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to update step: %w", err)
+			}
+		} else {
+			_, err := w.db.ExecContext(ctx, updateQuery,
+				status, errorMsg, now, taskID, step, attempt,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to update step: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// updateTaskStatus updates the task status.
+func (w *Worker) updateTaskStatus(ctx context.Context, taskID uuid.UUID, status string, errorMsg *string) error {
+	query := `UPDATE tasks SET status = $1, error = $2, updated_at = $3 WHERE id = $4`
+	_, err := w.db.ExecContext(ctx, query, status, errorMsg, time.Now(), taskID)
+	return err
+}
+
+// retryMessage retries a message with exponential backoff.
+func (w *Worker) retryMessage(ctx context.Context, msg models.TaskMessage, step string) error {
+	msg.Attempt++
+	delay := time.Duration(1<<uint(msg.Attempt-1)) * time.Second // Exponential backoff
+
+	w.logger.Info("Retrying message",
+		zap.String("step", step),
+		zap.String("task_id", msg.TaskID),
+		zap.Int("attempt", msg.Attempt),
+		zap.Duration("delay", delay),
+	)
+
+	// Wait before retrying
+	time.Sleep(delay)
+
+	// Publish retry message
+	routingKey := fmt.Sprintf("task.%s", step)
+	return w.publisher.Publish(ctx, routingKey, msg)
+}
+
