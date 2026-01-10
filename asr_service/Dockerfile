@@ -1,8 +1,8 @@
 # Build stage
 FROM python:3.11-slim as builder
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Install uv (avoid ghcr.io dependency in restricted networks)
+RUN python -m pip install --no-cache-dir uv
 
 # Set working directory
 WORKDIR /app
