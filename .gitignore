@@ -79,6 +79,7 @@ temp/
 *.mkv
 test_vedio/
 _vendor/
+artifacts/
 
 # uv
 uv.lock.bak

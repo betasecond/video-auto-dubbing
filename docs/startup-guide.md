@@ -60,6 +60,15 @@ docker compose run --rm tts_service python -c "from huggingface_hub import snaps
 
 如需走镜像站点，确保 `.env` 中配置 `HF_ENDPOINT`，或在命令前设置环境变量。
 
+## 4.1 离线分发（可选）
+
+如果你的环境无法访问外网，或希望“一次下载、多处复用”，可以在一台已完成模型下载的机器上导出离线模型包，再在目标机器导入。
+
+- 导出：`bash scripts/export_tts_model_bundle.sh`
+- 导入：`bash scripts/import_tts_model_bundle.sh <bundle.tar.gz | https://...>`
+
+详见：`docs/offline-assets.md`
+
 ## 5. 启动与验证
 
 ```bash

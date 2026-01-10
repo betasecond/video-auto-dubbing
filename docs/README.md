@@ -23,6 +23,7 @@
 ## 部署与运维
 
 - [部署指南](deployment.md)
+- [离线资源与大文件分发](offline-assets.md)
 - [ASR 服务说明](asr-service.md)
 - [TTS 服务说明](tts-service.md)
 
