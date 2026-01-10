@@ -1,6 +1,6 @@
 # 快速启动指南
 
-> 更新日期：2026-01-03｜适用版本：main 分支
+> 更新日期：2026-01-10｜适用版本：main 分支
 
 本文档采用 UTF-8 编码保存，以避免中文显示乱码。
 
@@ -80,7 +80,7 @@ docker compose logs -f
 | 前端页面 | http://localhost | 通过 NGINX 访问 UI |
 | API 服务 | http://localhost:8080 | 后端 REST API |
 | ASR 服务 | http://localhost:8002 | Moonshine ASR |
-| TTS 服务 | http://localhost:8001 | 语音合成（默认 8001，避免与 8000 冲突） |
+| TTS 服务 | http://localhost:8000/8001 | 语音合成（端口由 `TTS_PORT` 控制） |
 | MinIO 控制台 | http://localhost:9001 | 对象存储管理 |
 | RabbitMQ 管理台 | http://localhost:15672 | 消息队列管理 |
 | PostgreSQL | localhost:5432 | 数据库 |
@@ -96,7 +96,8 @@ docker compose logs -f
 
 # API 与 TTS 健康检查
 curl http://localhost:8080/health
-curl http://localhost:8001/health
+# TTS 端口取决于 TTS_PORT（env.example 默认 8000；未设置则 8001）
+curl http://localhost:8000/health
 ```
 
 ## 6. 真实 E2E 测试（10 秒样例）

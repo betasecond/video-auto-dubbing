@@ -1,6 +1,6 @@
 # 视频本地化自动配音系统
 
-> 更新日期：2026-01-03｜适用版本：main 分支
+> 更新日期：2026-01-10｜适用版本：main 分支
 
 
 
@@ -24,7 +24,7 @@
 
 - ✅ **机器翻译**: 利用 GLM 模型进行跨语言翻译
 
-- ✅ **可控 TTS**: 基于本地部署的 IndexTTS2（代码来自 GitHub，权重从 HuggingFace 拉取）实现受时间轴约束的可控语音合成
+- ✅ **可控 TTS**: 基于本地部署的 IndexTTS2（代码内置于 `tts_service/indextts`，权重从 HuggingFace 拉取）实现受时间轴约束的可控语音合成
 
 - ✅ **音画同步**: 通过时间轴约束解决跨语言配音时音画不同步的问题
 
@@ -463,7 +463,7 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 
 
-- TTS 服务使用的 IndexTTS2 代码位于 `tts_service/indextts`（来自上游仓库 https://github.com/index-tts/index-tts）
+- TTS 服务使用的 IndexTTS2 代码位于 `tts_service/indextts`（已内置，如需升级可替换该目录）
 - 模型权重通过 HuggingFace 下载到 `tts_service/models/IndexTTS-2` 或容器内 `/app/models/IndexTTS-2`（参考 `docs/startup-guide.md`）
 
 ## Moonshine 说明
@@ -473,4 +473,4 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 ## 致谢
 
 - Moonshine: https://github.com/moonshine-ai/moonshine
-- IndexTTS2: https://github.com/index-tts/index-tts
+- IndexTTS2（上游参考，可选）: https://github.com/index-tts/index-tts
