@@ -1,0 +1,3 @@
+[submodule "index-tts-windows"]
+	path = index-tts-windows
+	url = https://github.com/index-tts/index-tts.git
