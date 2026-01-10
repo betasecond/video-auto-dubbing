@@ -245,6 +245,39 @@
             font-size: 12px;
             color: #666;
         }
+
+        .task-steps {
+            margin-top: 10px;
+            display: grid;
+            gap: 6px;
+        }
+
+        .task-step {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #eee;
+            background: #fff;
+            font-size: 12px;
+        }
+
+        .step-label {
+            color: #555;
+        }
+
+        .step-status {
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .step-status-pending { background: #f5f5f5; color: #888; }
+        .step-status-running { background: #e3f2fd; color: #1976d2; }
+        .step-status-succeeded { background: #e8f5e9; color: #2e7d32; }
+        .step-status-failed { background: #ffebee; color: #c62828; }
     </style>
 </head>
 <body>
@@ -294,6 +327,74 @@
     <script>
         const API_BASE = '/api/v1';
         const SETTINGS_STORAGE_KEY = 'vedio_settings_v1';
+        const PIPELINE_STEPS = [
+            { key: 'extract_audio', label: '提取音频' },
+            { key: 'asr', label: 'ASR 识别' },
+            { key: 'translate', label: 'LLM 翻译' },
+            { key: 'tts', label: 'TTS 处理' },
+            { key: 'mux_video', label: '完成' }
+        ];
+        const STEP_STATUS_LABELS = {
+            pending: '待处理',
+            running: '处理中',
+            succeeded: '已完成',
+            failed: '失败'
+        };
+
+        function normalizeStepMap(steps) {
+            if (!Array.isArray(steps)) {
+                return null;
+            }
+            const stepMap = {};
+            steps.forEach((step) => {
+                if (step && step.step) {
+                    stepMap[step.step] = step.status || 'pending';
+                }
+            });
+            return stepMap;
+        }
+
+        function getStepStatusText(status) {
+            return STEP_STATUS_LABELS[status] || status;
+        }
+
+        function computeProgressFromSteps(stepMap, taskStatus) {
+            if (!stepMap) {
+                return null;
+            }
+            if (taskStatus === 'done') {
+                return 100;
+            }
+            let completed = 0;
+            PIPELINE_STEPS.forEach((step) => {
+                if (stepMap[step.key] === 'succeeded') {
+                    completed += 1;
+                }
+            });
+            return Math.floor((completed / PIPELINE_STEPS.length) * 100);
+        }
+
+        function renderStepList(stepMap, taskStatus) {
+            if (!stepMap) {
+                return '';
+            }
+            const items = PIPELINE_STEPS.map((step) => {
+                let status = stepMap[step.key];
+                if (!status && taskStatus === 'done') {
+                    status = 'succeeded';
+                }
+                if (!status) {
+                    status = 'pending';
+                }
+                return `
+                    <div class="task-step">
+                        <span class="step-label">${step.label}</span>
+                        <span class="step-status step-status-${status}">${getStepStatusText(status)}</span>
+                    </div>
+                `;
+            }).join('');
+            return `<div class="task-steps">${items}</div>`;
+        }
 
         function getSettings() {
             try {
@@ -428,7 +529,13 @@
                 return;
             }
 
-            tasksList.innerHTML = tasks.map(task => `
+            tasksList.innerHTML = tasks.map(task => {
+                const stepMap = normalizeStepMap(task.steps);
+                const progressValue = computeProgressFromSteps(stepMap, task.status);
+                const displayProgress = Number.isFinite(progressValue) ? progressValue : (task.progress || 0);
+                const stepsHtml = renderStepList(stepMap, task.status);
+
+                return `
                 <div class="task-item">
                     <div class="task-header">
                         <div>
@@ -442,10 +549,11 @@
                     </div>
                     <div class="task-progress">
                         <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${task.progress}%"></div>
+                            <div class="progress-fill" style="width: ${displayProgress}%"></div>
                         </div>
-                        <div style="margin-top: 5px; font-size: 12px; color: #666;">${task.progress}%</div>
+                        <div style="margin-top: 5px; font-size: 12px; color: #666;">${displayProgress}%</div>
                     </div>
+                    ${stepsHtml}
                     ${task.error ? `<div class="error">错误: ${task.error}</div>` : ''}
                     <div class="task-actions">
                         ${task.status === 'done' ? 
@@ -461,7 +569,8 @@
                         <button class="btn btn-danger" onclick="deleteTask('${task.task_id}')">删除</button>
                     </div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
 
             // 自动刷新运行中的任务
             tasks.filter(t => t.status === 'running' || t.status === 'queued').forEach(task => {
