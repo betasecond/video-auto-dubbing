@@ -32,174 +32,19 @@ tts_service/
 
 ### Base URL
 
-- **开发环境**: `http://localhost:8000`
-- **生产环境**: `http://tts_service:8000`
+- **容器内调用**: `http://tts_service:8000`
+- **宿主机（Docker）**: `http://localhost:<TTS_PORT>`（`docker-compose.yml` 默认 8001；若 `.env` 设置 `TTS_PORT=8000` 则使用 8000）
+- **本地直跑**: `http://localhost:8000`
 
+### 可选：IndexTTS2 Gradio 后端
 
-### ?? Gradio Live (IndexTTS2 ???)
+当本地模型不可用或需要临时切换到远端服务时，可使用 Gradio 后端。
 
-> ??: ?? Gradio Live ?????? IndexTTS2 ???????API ??????????? Base URL ?????????
-
-**Base URL (??)**: `https://aa178b11c55dad33a2.gradio.live/`
-
-**Python client ??**:
-```bash
-pip install gradio_client
-```
-
-#### 1. `POST /on_method_select`
-**??**: ?? "??????"
-
-```python
-from gradio_client import Client
-
-client = Client("https://aa178b11c55dad33a2.gradio.live/")
-result = client.predict(
-    emo_control_method="?????????",
-    api_name="/on_method_select",
-)
-print(result)
-```
-
-**??**:
-- `emo_control_method`: Literal['?????????', '????????', '????????']??? "?????????"
-
-#### 2. `POST /on_input_text_change`
-**??**: ?????????????
-
-```python
-from gradio_client import Client
-
-client = Client("https://aa178b11c55dad33a2.gradio.live/")
-result = client.predict(
-    text="Hello!!",
-    max_text_tokens_per_segment=120,
-    api_name="/on_input_text_change",
-)
-print(result)
-```
-
-**??**:
-- `text`: str (??)
-- `max_text_tokens_per_segment`: float (?? 120)
-
-**??**:
-- `Dict(headers: List[str], data: List[List[Any]], metadata: Dict(str, List[Any] | None) | None)`
-
-#### 3. `POST /on_experimental_change`
-**??**: ????????
-
-```python
-from gradio_client import Client
-
-client = Client("https://aa178b11c55dad33a2.gradio.live/")
-result = client.predict(
-    is_exp=False,
-    api_name="/on_experimental_change",
-)
-print(result)
-```
-
-**??**:
-- `is_exp`: bool (?? False)
-
-**??**:
-- tuple[0]: Literal['?????????', '????????', '????????']
-- tuple[1]: int
-
-#### 4. `POST /on_input_text_change_1`
-**??**: ?????????
-
-```python
-from gradio_client import Client
-
-client = Client("https://aa178b11c55dad33a2.gradio.live/")
-result = client.predict(
-    text="Hello!!",
-    max_text_tokens_per_segment=120,
-    api_name="/on_input_text_change_1",
-)
-print(result)
-```
-
-**??**:
-- `text`: str (??)
-- `max_text_tokens_per_segment`: float (?? 120)
-
-**??**:
-- `Dict(headers: List[str], data: List[List[Any]], metadata: Dict(str, List[Any] | None) | None)`
-
-#### 5. `POST /update_prompt_audio`
-**??**: ??????
-
-```python
-from gradio_client import Client
-
-client = Client("https://aa178b11c55dad33a2.gradio.live/")
-result = client.predict(
-    api_name="/update_prompt_audio",
-)
-print(result)
-```
-
-#### 6. `POST /gen_single`
-**??**: ??????
-
-```python
-from gradio_client import Client, handle_file
-
-client = Client("https://aa178b11c55dad33a2.gradio.live/")
-result = client.predict(
-    emo_control_method="?????????",
-    prompt=handle_file("https://github.com/gradio-app/gradio/raw/main/test/test_files/audio_sample.wav"),
-    text="Hello!!",
-    emo_ref_path=handle_file("https://github.com/gradio-app/gradio/raw/main/test/test_files/audio_sample.wav"),
-    emo_weight=0.8,
-    vec1=0,
-    vec2=0,
-    vec3=0,
-    vec4=0,
-    vec5=0,
-    vec6=0,
-    vec7=0,
-    vec8=0,
-    emo_text="",
-    emo_random=False,
-    max_text_tokens_per_segment=120,
-    param_16=True,
-    param_17=0.8,
-    param_18=30,
-    param_19=0.8,
-    param_20=0,
-    param_21=3,
-    param_22=10,
-    param_23=1500,
-    api_name="/gen_single",
-)
-print(result)
-```
-
-**?? (24 ?)**:
-- `emo_control_method`: Literal['?????????', '????????', '????????']
-- `prompt`: filepath (??????)
-- `text`: str (??)
-- `emo_ref_path`: filepath (????????)
-- `emo_weight`: float (?? 0.8)
-- `vec1`..`vec8`: float (???????? 0)
-- `emo_text`: str (?? "")
-- `emo_random`: bool (?? False)
-- `max_text_tokens_per_segment`: float (?? 120)
-- `param_16`: bool (do_sample, ?? True)
-- `param_17`: float (top_p, ?? 0.8)
-- `param_18`: float (top_k, ?? 30)
-- `param_19`: float (temperature, ?? 0.8)
-- `param_20`: float (length_penalty, ?? 0)
-- `param_21`: float (num_beams, ?? 3)
-- `param_22`: float (repetition_penalty, ?? 10)
-- `param_23`: float (max_mel_tokens, ?? 1500)
-
-**??**:
-- `filepath` (??????)
+- 环境变量：
+  - `TTS_BACKEND=index_tts2_gradio`
+  - `INDEXTTS_GRADIO_URL=https://<your-gradio-app>`
+- 也可在请求体中使用 `tts_backend` 与 `indextts_gradio_url` 进行单次覆盖。
+- 依赖：`gradio_client`（已在 `tts_service/pyproject.toml` 中声明）。
 
 ### 1. 健康检查
 
@@ -209,7 +54,10 @@ print(result)
 ```json
 {
   "status": "healthy",
-  "model_loaded": true
+  "model_loaded": true,
+  "backend": "index_tts2",
+  "index_tts2_loaded": true,
+  "message": "IndexTTS2 已加载"
 }
 ```
 
@@ -225,6 +73,7 @@ print(result)
 {
   "text": "Hello, world",
   "speaker_id": "default",
+  "prompt_audio_url": "https://example.com/voice.wav",
   "target_duration_ms": 1500,
   "language": "en",
   "prosody_control": {
@@ -247,7 +96,9 @@ print(result)
     ]
   },
   "output_format": "wav",
-  "sample_rate": 22050
+  "sample_rate": 22050,
+  "tts_backend": "index_tts2",
+  "indextts_gradio_url": "https://example.gradio.live"
 }
 ```
 
@@ -257,6 +108,7 @@ print(result)
 |------|------|------|------|
 | `text` | string | 是 | 要合成的文本 |
 | `speaker_id` | string | 否 | 说话人 ID（默认: "default"） |
+| `prompt_audio_url` | string | 否 | 参考音频 URL（未提供则使用 `INDEXTTS_PROMPT_AUDIO`） |
 | `target_duration_ms` | integer | 是 | 目标时长（毫秒），用于时间轴约束 |
 | `language` | string | 否 | 语言代码（默认: "en"） |
 | `prosody_control` | object | 否 | 韵律控制参数 |
@@ -265,8 +117,11 @@ print(result)
 | `prosody_control.energy` | float | 否 | 能量（0.5-2.0，默认: 1.0） |
 | `time_constraints` | object | 否 | 时间约束（分段对齐） |
 | `time_constraints.segments` | array | 否 | 分段信息，用于精细控制 |
+| `time_constraints.segments.start_time_ms` | integer | 否 | 起始时间（当前实现不参与合成，仅作对齐记录） |
 | `output_format` | string | 否 | 输出格式（wav/mp3，默认: wav） |
 | `sample_rate` | integer | 否 | 采样率（默认: 22050） |
+| `tts_backend` | string | 否 | 后端模式（`index_tts2`/`index_tts2_gradio`） |
+| `indextts_gradio_url` | string | 否 | Gradio Base URL（仅 `index_tts2_gradio` 时需要） |
 
 **响应**:
 
@@ -277,7 +132,7 @@ print(result)
 
 ```json
 {
-  "audio_url": "http://tts_service:8000/audio/temp_123456.wav",
+  "audio_url": "http://localhost:8000/audio/9f1b9b3b-3a7b-4b52-9e1d-8c7d1c2a2b0a.wav",
   "duration_ms": 1500,
   "sample_rate": 22050,
   "format": "wav",
@@ -320,18 +175,18 @@ print(result)
 **响应**:
 ```json
 {
-  "audio_url": "http://tts_service:8000/audio/batch_123456.wav",
+  "audio_url": "/audio/batch_123456.wav",
   "duration_ms": 1500,
   "segments": [
     {
       "idx": 0,
       "duration_ms": 500,
-      "audio_url": "http://tts_service:8000/audio/seg_0.wav"
+      "audio_url": "/audio/seg_0.wav"
     },
     {
       "idx": 1,
       "duration_ms": 1000,
-      "audio_url": "http://tts_service:8000/audio/seg_1.wav"
+      "audio_url": "/audio/seg_1.wav"
     }
   ]
 }
@@ -350,12 +205,6 @@ print(result)
       "name": "默认说话人",
       "language": "en",
       "gender": "neutral"
-    },
-    {
-      "id": "female_1",
-      "name": "女性声音1",
-      "language": "en",
-      "gender": "female"
     }
   ]
 }
@@ -438,54 +287,7 @@ def calculate_prosody_for_duration(
 
 ### pyproject.toml
 
-```toml
-[project]
-name = "tts-service"
-version = "0.1.0"
-description = "IndexTTS2 based TTS service"
-requires-python = ">=3.11"
-dependencies = [
-    "fastapi>=0.104.0",
-    "uvicorn[standard]>=0.24.0",
-    "pydantic>=2.5.0",
-    "pydantic-settings>=2.1.0",
-    "numpy>=1.24.0",
-    "torch>=2.1.0",
-    "torchaudio>=2.1.0",
-    "librosa>=0.10.0",
-    "soundfile>=0.12.0",
-    "scipy>=1.11.0",
-    "python-multipart>=0.0.6",
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
-    "black>=23.11.0",
-    "ruff>=0.1.6",
-]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.uv]
-dev-dependencies = [
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
-    "black>=23.11.0",
-    "ruff>=0.1.6",
-]
-
-[tool.black]
-line-length = 100
-target-version = ['py311']
-
-[tool.ruff]
-line-length = 100
-target-version = "py311"
-```
+依赖与版本请以 `tts_service/pyproject.toml` 为准，避免文档与实际配置漂移。
 
 ### 使用 uv 管理依赖
 
@@ -533,6 +335,7 @@ uv sync --frozen  # 使用 uv.lock 锁定版本
 - `INDEXTTS_USE_FP16`: 是否启用 FP16
 - `INDEXTTS_USE_TORCH_COMPILE`: 是否启用 torch.compile
 - `INDEXTTS_USE_CUDA_KERNEL`: 是否启用自定义 CUDA kernel
+- `INDEXTTS_GRADIO_URL`: Gradio Base URL（使用 `index_tts2_gradio` 时必填）
 - `HF_ENDPOINT`: HuggingFace 访问地址（可选镜像）
 - `HF_HUB_CACHE`: HuggingFace 缓存目录
 - `STRICT_DURATION`: 是否严格对齐目标时长（默认: `false`）
@@ -567,6 +370,7 @@ INDEXTTS_DEVICE=auto
 INDEXTTS_USE_FP16=true
 INDEXTTS_USE_TORCH_COMPILE=false
 INDEXTTS_USE_CUDA_KERNEL=false
+INDEXTTS_GRADIO_URL=
 HF_ENDPOINT=https://hf-mirror.com
 HF_HUB_CACHE=/app/models/IndexTTS-2/hf_cache
 STRICT_DURATION=false

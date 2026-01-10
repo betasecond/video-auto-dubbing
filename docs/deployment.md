@@ -77,7 +77,7 @@ curl http://localhost:8080/health
 |------|------|------|
 | API 服务 | http://localhost:8080 | 后端 API |
 | ASR Service | http://localhost:8002 | Moonshine ASR |
-| TTS 服务 | http://localhost:8000/8001 | 直连 TTS（端口由 `TTS_PORT` 决定） |
+| TTS 服务 | http://localhost:<TTS_PORT> | 直连 TTS（`.env` 中为 8000；未设置则 compose 默认 8001） |
 | MinIO 控制台 | http://localhost:9001 | 对象存储管理 |
 | RabbitMQ 管理 | http://localhost:15672 | 消息队列管理 |
 | 网关 | http://localhost:80 | 统一入口 |

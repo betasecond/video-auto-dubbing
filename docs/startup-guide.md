@@ -84,7 +84,7 @@ docker compose logs -f
 | 网关/前端 | http://localhost | 通过 NGINX 访问内置 UI（`web/dist`） |
 | API | http://localhost:8080 | REST 接口 `/api/v1`（端口由 `API_PORT` 控制） |
 | ASR | http://localhost:8002 | Moonshine ASR（`ASR_PORT`） |
-| TTS | http://localhost:8001 | 语音合成健康检查 `/health`，端口由 `TTS_PORT` 控制 |
+| TTS | http://localhost:<TTS_PORT> | 语音合成健康检查 `/health`，端口由 `TTS_PORT` 控制（`.env` 中为 8000；未设置则 compose 默认 8001） |
 | MinIO 控制台 | http://localhost:9001 | 对象存储管理 |
 | RabbitMQ 控制台 | http://localhost:15672 | 消息队列管理 |
 | PostgreSQL | localhost:5432 | 数据库 |
