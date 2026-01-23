@@ -1,0 +1,5 @@
+test_vedio/
+.DS_Store
+.deepvcode/
+backup/
+*.mov
