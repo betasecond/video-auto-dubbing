@@ -54,6 +54,12 @@ func NewClient(cfg config.TTSConfig, logger *zap.Logger) Client {
 		return NewLegacyClient(cfg, logger)
 	}
 
+	// Aliyun Backend
+	if cfg.Backend == "aliyun" {
+		logger.Info("Using AliyunClient", zap.String("model", cfg.AliyunModel))
+		return NewAliyunClient(cfg, logger)
+	}
+
 	// Explicit Gradio backend selection
 	if cfg.Backend == "gradio" {
 		logger.Info("Using GradioClient (explicit backend=gradio)",

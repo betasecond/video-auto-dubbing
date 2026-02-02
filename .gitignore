@@ -4,3 +4,5 @@ test_vedio/
 backup/
 *.mov
 .env
+.agents
+.codex

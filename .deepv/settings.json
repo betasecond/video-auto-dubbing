@@ -1,0 +1,10 @@
+{
+  "yolo": true,
+  "customThemes": {},
+  "mcpServers": {
+    "chorme-tool": {
+      "command": "\"npx"
+    }
+  },
+  "hooks": {}
+}

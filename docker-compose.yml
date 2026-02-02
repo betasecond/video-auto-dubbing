@@ -99,6 +99,9 @@ services:
       GLM_MODEL: ${GLM_MODEL:-glm-4.5}
       # TTS 服务配置
       TTS_SERVICE_URL: ${TTS_SERVICE_URL}
+      # Aliyun DashScope
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      DASHSCOPE_BASE_URL: ${DASHSCOPE_BASE_URL:-}
       # 服务配置
       API_PORT: 8080
       API_HOST: 0.0.0.0
@@ -156,6 +159,9 @@ services:
       TTS_SERVICE_URL: ${TTS_SERVICE_URL}
       TTS_BACKEND: ${TTS_BACKEND:-vllm}
       TTS_API_KEY: ${TTS_API_KEY:-}
+      # Aliyun DashScope
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      DASHSCOPE_BASE_URL: ${DASHSCOPE_BASE_URL:-}
       # FFmpeg 配置
       FFMPEG_PATH: /usr/bin/ffmpeg
       # 火山引擎 ASR 配置

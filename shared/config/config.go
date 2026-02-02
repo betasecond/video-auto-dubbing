@@ -68,7 +68,11 @@ type RabbitMQConfig struct {
 type TTSConfig struct {
 	URL     string
 	APIKey  string // Optional API key for remote TTS service
-	Backend string // TTS backend: "vllm" (default), "legacy"
+	Backend string // TTS backend: "vllm" (default), "legacy", "aliyun"
+	// Aliyun DashScope configuration
+	AliyunAPIKey  string
+	AliyunBaseURL string
+	AliyunModel   string
 }
 
 // ExternalConfig holds external API configuration.
@@ -142,6 +146,9 @@ func NewLoader(opts ...Option) *loader {
 		"TTS_SERVICE_URL":       "http://localhost:8000",
 		"TTS_API_KEY":           "",
 		"TTS_BACKEND":           "vllm",
+		"DASHSCOPE_API_KEY":     "",
+		"DASHSCOPE_BASE_URL":    "https://dashscope.aliyuncs.com/compatible-mode/v1",
+		"DASHSCOPE_MODEL":       "cosyvoice-v1",
 		"GLM_API_URL":           "https://open.bigmodel.cn/api/paas/v4/chat/completions",
 		"GLM_MODEL":             "glm-4-flash",
 		"GLM_RPS":               5.0,
@@ -250,9 +257,12 @@ func (l *loader) Load() (*BaseConfig, error) {
 			URL: l.v.GetString("RABBITMQ_URL"),
 		},
 		TTS: TTSConfig{
-			URL:     l.v.GetString("TTS_SERVICE_URL"),
-			APIKey:  l.v.GetString("TTS_API_KEY"),
-			Backend: l.v.GetString("TTS_BACKEND"),
+			URL:           l.v.GetString("TTS_SERVICE_URL"),
+			APIKey:        l.v.GetString("TTS_API_KEY"),
+			Backend:       l.v.GetString("TTS_BACKEND"),
+			AliyunAPIKey:  l.v.GetString("DASHSCOPE_API_KEY"),
+			AliyunBaseURL: l.v.GetString("DASHSCOPE_BASE_URL"),
+			AliyunModel:   l.v.GetString("DASHSCOPE_MODEL"),
 		},
 		External: ExternalConfig{
 			VolcengineASR: VolcengineASRConfig{
