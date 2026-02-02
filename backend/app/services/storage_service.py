@@ -11,14 +11,14 @@ from uuid import UUID
 
 from loguru import logger
 
-from app.integrations.oss import get_oss_client
+from app.integrations.oss import OSSClient
 
 
 class StorageService:
     """存储服务"""
 
     def __init__(self):
-        self.oss = get_oss_client()
+        self.oss = OSSClient()
 
     def build_task_path(self, task_id: UUID, filename: str) -> str:
         """

@@ -1,8 +1,45 @@
-test_vedio/
+# System & Environment
 .DS_Store
-.deepvcode/
-backup/
-*.mov
 .env
-.agents
-.codex
+.env.local
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Editor & IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.deepvcode/
+.codex/
+.agents/
+
+# Project Specific - Backend
+backend/worker.log
+backend/celerybeat-schedule
+backend/*.log
+backend/temp/
+backend/downloads/
+
+# Project Specific - Frontend
+frontend/.next/
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+frontend/out/
+frontend/.vercel/
+frontend/*.log
+frontend/coverage/
+
+# Media & Temporary Files
+*.mov
+*.mp4
+*.mp3
+*.wav
+test_vedio/
+backup/
+temp/

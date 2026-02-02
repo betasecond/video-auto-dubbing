@@ -3,12 +3,19 @@ const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
 
+  // 优化包导入 (Rule 2.1)
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'date-fns', 'lodash'],
+  },
+
   // API 代理配置
   async rewrites() {
     return [
       {
-        source: '/api/:path*',
-        destination: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/:path*',
+        source: '/api/v1/:path*',
+        destination: process.env.API_URL
+          ? `${process.env.API_URL}/api/v1/:path*`
+          : 'http://localhost:8000/api/v1/:path*',
       },
     ];
   },

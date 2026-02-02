@@ -15,45 +15,109 @@ from app.config import settings
 
 
 class VoiceCloneService:
-    """声音复刻服务"""
+    """声音复刻服务 - 使用 REST API"""
+
+    # 声音复刻 API URL
+    CLONE_API_URL = "https://dashscope.aliyuncs.com/api/v1/services/audio/tts/customization"
 
     def __init__(self, api_key: str):
         self.api_key = api_key
-        dashscope.api_key = api_key
 
     def enroll_voice(
         self,
         audio_path: str,
         target_model: str = "qwen3-tts-vc-realtime-2026-01-15",
-        prefix: str = "custom_voice",
+        prefix: str = "customvoice",
     ) -> Optional[str]:
         """
-        复刻音色
+        复刻音色（使用 REST API）
 
         Args:
-            audio_path: 音频文件路径（本地或 URL），建议 10-20 秒
+            audio_path: 音频文件路径（本地文件）或 URL
             target_model: 目标模型
-            prefix: 音色前缀
+            prefix: 音色前缀（仅允许数字和小写字母，小于10个字符）
 
         Returns:
-            voice_id（如 vc_xxx），失败返回 None
+            voice_id，失败返回 None
         """
+        import base64
+        import pathlib
+        import requests
+
         try:
-            from dashscope.audio.tts_v2 import VoiceEnrollmentService
+            logger.info(f"Enrolling voice via REST API: audio={audio_path}, model={target_model}")
 
-            logger.info(f"Enrolling voice: audio={audio_path}, model={target_model}")
+            # 如果是 URL，先下载到本地
+            if audio_path.startswith("http://") or audio_path.startswith("https://"):
+                logger.info(f"Downloading audio from URL: {audio_path}")
+                resp = requests.get(audio_path, timeout=60)
+                resp.raise_for_status()
+                audio_data = resp.content
+                # 根据 URL 猜测 MIME 类型
+                if ".wav" in audio_path.lower():
+                    audio_mime_type = "audio/wav"
+                elif ".mp3" in audio_path.lower():
+                    audio_mime_type = "audio/mpeg"
+                elif ".m4a" in audio_path.lower():
+                    audio_mime_type = "audio/mp4"
+                else:
+                    audio_mime_type = "audio/wav"  # 默认
+            else:
+                # 本地文件
+                file_path = pathlib.Path(audio_path)
+                if not file_path.exists():
+                    logger.error(f"Audio file not found: {audio_path}")
+                    return None
+                audio_data = file_path.read_bytes()
+                suffix = file_path.suffix.lower()
+                if suffix == ".wav":
+                    audio_mime_type = "audio/wav"
+                elif suffix == ".mp3":
+                    audio_mime_type = "audio/mpeg"
+                elif suffix == ".m4a":
+                    audio_mime_type = "audio/mp4"
+                else:
+                    audio_mime_type = "audio/wav"
 
-            service = VoiceEnrollmentService()
-            result = service.create_voice(
-                target_model=target_model, prefix=prefix, audio_url=audio_path
-            )
+            # Base64 编码
+            base64_str = base64.b64encode(audio_data).decode()
+            data_uri = f"data:{audio_mime_type};base64,{base64_str}"
 
-            if result.status_code == 200:
-                voice_id = result.output.voice_id
+            # 清理 prefix（只允许数字和小写字母，小于10个字符）
+            import re
+            clean_prefix = re.sub(r'[^a-z0-9]', '', prefix.lower())[:9]
+            if not clean_prefix:
+                clean_prefix = "voice"
+
+            payload = {
+                "model": "qwen-voice-enrollment",  # 固定值
+                "input": {
+                    "action": "create",
+                    "target_model": target_model,
+                    "preferred_name": clean_prefix,
+                    "audio": {"data": data_uri}
+                }
+            }
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+
+            logger.info(f"Sending voice enrollment request to {self.CLONE_API_URL}")
+            resp = requests.post(self.CLONE_API_URL, json=payload, headers=headers, timeout=120)
+
+            if resp.status_code != 200:
+                logger.error(f"Voice enrollment failed: {resp.status_code}, {resp.text}")
+                return None
+
+            result = resp.json()
+            voice_id = result.get("output", {}).get("voice")
+
+            if voice_id:
                 logger.info(f"Voice enrolled successfully: voice_id={voice_id}")
                 return voice_id
             else:
-                logger.error(f"Voice enrollment failed: {result.message}")
+                logger.error(f"Voice enrollment response missing voice_id: {result}")
                 return None
 
         except Exception as e:
@@ -66,7 +130,12 @@ class TTSClient:
 
     # 支持的模型
     MODEL_COSYVOICE = "cosyvoice-v1"  # 系统音色
+    MODEL_COSYVOICE_V2 = "cosyvoice-v2"  # 支持声音复刻
     MODEL_QWEN3_VC = "qwen3-tts-vc-realtime-2026-01-15"  # 声音复刻
+
+    # 支持声音复刻的模型列表
+    VOICE_CLONE_MODELS = ["cosyvoice-v2", "cosyvoice-v3-flash", "cosyvoice-v3-plus",
+                          "qwen3-tts-vc-realtime-2026-01-15", "qwen3-tts-vc-realtime-2025-11-27"]
 
     def __init__(
         self,
@@ -99,8 +168,8 @@ class TTSClient:
         # 设置 API Key
         dashscope.api_key = self.api_key
 
-        # 声音复刻服务（仅在使用复刻模型时初始化）
-        if self.model == self.MODEL_QWEN3_VC:
+        # 声音复刻服务（支持声音复刻的模型才初始化）
+        if self.model in self.VOICE_CLONE_MODELS:
             self.clone_service = VoiceCloneService(self.api_key)
         else:
             self.clone_service = None
@@ -128,9 +197,9 @@ class TTSClient:
             >>> voice_id = client.enroll_voice("sample_audio.wav")
             >>> audio = client.synthesize("你好", voice=voice_id)
         """
-        if self.model != self.MODEL_QWEN3_VC:
+        if self.model not in self.VOICE_CLONE_MODELS:
             logger.warning(
-                f"Voice cloning only supported for {self.MODEL_QWEN3_VC}, "
+                f"Voice cloning only supported for {self.VOICE_CLONE_MODELS}, "
                 f"current model: {self.model}"
             )
             return None
@@ -192,7 +261,7 @@ class TTSClient:
 
         # 如果是声音复刻模型 + auto_clone
         if (
-            self.model == self.MODEL_QWEN3_VC
+            self.model in self.VOICE_CLONE_MODELS
             and auto_clone
             and clone_audio_path
             and (not voice or not voice.startswith("vc_"))
@@ -202,12 +271,14 @@ class TTSClient:
             if not voice:
                 raise RuntimeError("Auto-clone failed, cannot synthesize")
 
-        # 验证复刻模型必须使用 voice_id
-        if self.model == self.MODEL_QWEN3_VC and (not voice or not voice.startswith("vc_")):
-            raise ValueError(
-                f"Model {self.MODEL_QWEN3_VC} requires voice_id (vc_xxx format). "
-                f"Got: {voice}. Please call enroll_voice() first or use auto_clone=True."
-            )
+        # 验证复刻模型必须使用 voice_id（qwen3-tts-vc 系列）
+        if self.model.startswith("qwen3-tts-vc"):
+            valid_prefixes = ("vc_", "qwen-tts-vc-")
+            if not voice or not voice.startswith(valid_prefixes):
+                raise ValueError(
+                    f"Model {self.model} requires voice_id (vc_xxx or qwen-tts-vc-xxx format). "
+                    f"Got: {voice}. Please call enroll_voice() first or use auto_clone=True."
+                )
 
         logger.info(
             f"Synthesizing: text_len={len(text)}, model={self.model}, "
@@ -215,13 +286,16 @@ class TTSClient:
         )
 
         try:
-            synthesizer = SpeechSynthesizer(
-                model=self.model,
-                voice=voice,
-            )
-
-            # 调用合成
-            audio_data = synthesizer.call(text)
+            # 对于 qwen3-tts-vc-realtime 系列，使用 WebSocket 实时 API
+            if self.model.startswith("qwen3-tts"):
+                audio_data = self._synthesize_realtime(text, voice)
+            else:
+                # 对于 cosyvoice 等模型，使用 SpeechSynthesizer
+                synthesizer = SpeechSynthesizer(
+                    model=self.model,
+                    voice=voice,
+                )
+                audio_data = synthesizer.call(text)
 
             if not audio_data:
                 raise RuntimeError("TTS returned empty audio")
@@ -232,6 +306,137 @@ class TTSClient:
         except Exception as e:
             logger.error(f"Synthesis failed: {e}")
             raise RuntimeError(f"Synthesis failed: {e}") from e
+
+    def _synthesize_realtime(self, text: str, voice: str) -> bytes:
+        """
+        使用 QwenTtsRealtime WebSocket API 进行语音合成
+
+        Args:
+            text: 待合成文本
+            voice: 复刻的 voice_id
+
+        Returns:
+            PCM 音频数据（bytes）
+        """
+        import base64
+        import threading
+        from dashscope.audio.qwen_tts_realtime import (
+            QwenTtsRealtime,
+            QwenTtsRealtimeCallback,
+            AudioFormat,
+        )
+
+        audio_chunks = []
+        complete_event = threading.Event()
+        error_message = None
+
+        class SyncCallback(QwenTtsRealtimeCallback):
+            def on_open(self) -> None:
+                logger.debug("WebSocket connection opened")
+
+            def on_close(self, close_status_code, close_msg) -> None:
+                logger.debug(f"WebSocket closed: code={close_status_code}, msg={close_msg}")
+                complete_event.set()
+
+            def on_event(self, response: dict) -> None:
+                nonlocal error_message
+                try:
+                    event_type = response.get("type", "")
+                    if event_type == "response.audio.delta":
+                        audio_b64 = response.get("delta", "")
+                        if audio_b64:
+                            audio_chunks.append(base64.b64decode(audio_b64))
+                    elif event_type == "session.finished":
+                        complete_event.set()
+                    elif event_type == "error":
+                        error_message = response.get("error", {}).get("message", "Unknown error")
+                        complete_event.set()
+                except Exception as e:
+                    logger.error(f"Callback error: {e}")
+                    error_message = str(e)
+                    complete_event.set()
+
+        callback = SyncCallback()
+
+        client = QwenTtsRealtime(
+            model=self.model,
+            callback=callback,
+            url="wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+        )
+
+        try:
+            client.connect()
+            client.update_session(
+                voice=voice,
+                response_format=AudioFormat.PCM_24000HZ_MONO_16BIT,
+                mode="server_commit",
+            )
+
+            # 发送文本
+            client.append_text(text)
+            client.finish()
+
+            # 等待完成（最多 60 秒）
+            if not complete_event.wait(timeout=60):
+                raise RuntimeError("TTS synthesis timeout")
+
+            if error_message:
+                raise RuntimeError(f"TTS error: {error_message}")
+
+            # 合并 PCM 音频块
+            pcm_data = b"".join(audio_chunks)
+
+            if not pcm_data:
+                raise RuntimeError("No audio data received from TTS")
+
+            # 将 PCM 转换为 MP3（使用 ffmpeg）
+            import subprocess
+            import tempfile
+
+            # 临时 PCM 文件
+            pcm_file = tempfile.NamedTemporaryFile(suffix=".pcm", delete=False)
+            pcm_file.write(pcm_data)
+            pcm_file.close()
+
+            # 临时 MP3 文件
+            mp3_file = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+            mp3_file.close()
+
+            try:
+                # PCM -> MP3: 24kHz, mono, 16bit
+                cmd = [
+                    "ffmpeg", "-y",
+                    "-f", "s16le",  # 16-bit signed little-endian
+                    "-ar", "24000",  # 24kHz
+                    "-ac", "1",      # mono
+                    "-i", pcm_file.name,
+                    "-codec:a", "libmp3lame",
+                    "-b:a", "128k",
+                    mp3_file.name
+                ]
+                subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+                # 读取 MP3 数据
+                with open(mp3_file.name, "rb") as f:
+                    mp3_data = f.read()
+
+                logger.info(f"PCM->MP3 conversion: {len(pcm_data)} bytes -> {len(mp3_data)} bytes")
+                return mp3_data
+
+            finally:
+                # 清理临时文件
+                import os
+                try:
+                    os.unlink(pcm_file.name)
+                    os.unlink(mp3_file.name)
+                except Exception:
+                    pass
+
+        finally:
+            try:
+                client.close()
+            except Exception:
+                pass
 
     def synthesize_with_duration(
         self,

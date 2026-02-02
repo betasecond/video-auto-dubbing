@@ -239,22 +239,32 @@ class ASRClient:
         Returns:
             分段列表
         """
+        import re
+
         segments = []
+
+        # 清理 fun-asr / sensevoice 标签的正则
+        tag_pattern = re.compile(r'<\|[^|]+\|>')
 
         transcripts = data.get("transcripts", [])
         for transcript in transcripts:
             sentences = transcript.get("sentences", [])
 
             for sentence in sentences:
-                text = sentence.get("text", "").strip()
-                if not text:
+                raw_text = sentence.get("text", "").strip()
+
+                # 清理标签（<|Speech|>, <|NEUTRAL|> 等）
+                text = tag_pattern.sub('', raw_text).strip()
+
+                # 过滤纯标点/空白分段
+                if not text or text in ['.', '。', ',', '，', '!', '！', '?', '？']:
                     continue
 
                 start_time = sentence.get("begin_time", 0)
                 end_time = sentence.get("end_time", 0)
 
                 # 提取元数据
-                speaker_id = sentence.get("speaker_id")
+                speaker_id = sentence.get("speaker_id") or "speaker_0"
                 emotion = sentence.get("emotion")
                 confidence = sentence.get("confidence")
 
@@ -269,7 +279,7 @@ class ASRClient:
 
                 segments.append(segment)
 
-        logger.info(f"Parsed {len(segments)} segments")
+        logger.info(f"Parsed {len(segments)} valid segments (filtered out empty/punctuation-only)")
         return segments
 
 

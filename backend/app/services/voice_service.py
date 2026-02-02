@@ -10,8 +10,8 @@ from uuid import UUID
 
 from loguru import logger
 
-from app.integrations.dashscope import get_tts_client
-from app.integrations.oss import get_oss_client
+from app.integrations.dashscope import TTSClient
+from app.integrations.oss import OSSClient
 from app.utils.ffmpeg import FFmpegHelper
 
 
@@ -19,8 +19,8 @@ class VoiceService:
     """声音复刻服务"""
 
     def __init__(self):
-        self.tts_client = get_tts_client()
-        self.oss_client = get_oss_client()
+        self.tts_client = TTSClient()
+        self.oss_client = OSSClient()
         self.ffmpeg = FFmpegHelper()
 
     def enroll_speaker_from_segments(
@@ -73,7 +73,12 @@ class VoiceService:
                     seg["end_time_ms"],
                     output_path=f"{temp_dir}/clip_{i:04d}.wav",
                 )
-                audio_clips.append({"path": clip_path})
+                # 注意：merge_audio_segments 需要 start_ms 和 end_ms 字段
+                audio_clips.append({
+                    "path": clip_path,
+                    "start_ms": 0,  # 合并时顺序拼接，不需要时间轴
+                    "end_ms": seg["end_time_ms"] - seg["start_time_ms"],
+                })
 
                 duration = seg["end_time_ms"] - seg["start_time_ms"]
                 total_duration_ms += duration
@@ -85,25 +90,41 @@ class VoiceService:
                     )
                     break
 
-            # 合并音频片段
-            merged_audio = self.ffmpeg.merge_audio_segments(
-                audio_clips, output_path=f"{temp_dir}/merged.wav"
-            )
+            # 合并音频片段（顺序拼接，不按时间轴）
+            # 创建 FFmpeg concat 文件列表
+            concat_file = f"{temp_dir}/concat.txt"
+            with open(concat_file, "w") as f:
+                for clip in audio_clips:
+                    f.write(f"file '{clip['path']}'\n")
+
+            # 使用 concat demuxer 合并
+            import subprocess
+            merged_audio = f"{temp_dir}/merged.wav"
+            cmd = [
+                "ffmpeg", "-f", "concat", "-safe", "0",
+                "-i", concat_file,
+                "-c", "copy", "-y", merged_audio
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
             logger.info(
                 f"Merged audio for speaker {speaker_id}: {merged_audio}, "
                 f"duration={total_duration_ms}ms"
             )
 
-            # 上传到 OSS（可选，用于调试）
-            oss_key = f"task_{task_id}/voices/speaker_{speaker_id}.wav"
-            self.oss_client.upload_file(merged_audio, oss_key)
+            # 直接使用本地合并后的音频文件调用声音复刻 API
+            # （新的 REST API 支持直接上传本地文件）
+            logger.info(f"Calling voice enrollment API with local file: {merged_audio}")
 
-            logger.info(f"Uploaded voice sample to OSS: {oss_key}")
+            # 生成简洁的 prefix（只允许小写字母和数字，少于10字符）
+            import re
+            clean_prefix = re.sub(r'[^a-z0-9]', '', speaker_id.lower())[:8]
+            if not clean_prefix:
+                clean_prefix = "voice"
 
             # 调用声音复刻 API
             voice_id = self.tts_client.enroll_voice(
-                audio_path=merged_audio, prefix=f"task_{task_id}_{speaker_id}"
+                audio_path=merged_audio, prefix=clean_prefix
             )
 
             if voice_id:

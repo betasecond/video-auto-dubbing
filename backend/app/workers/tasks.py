@@ -3,6 +3,7 @@ Celery 任务定义
 视频配音处理流程
 """
 
+import asyncio
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -13,12 +14,22 @@ from loguru import logger
 
 from app.config import settings
 from app.database import get_db_context
-from app.integrations.dashscope import get_asr_client, get_llm_client, get_tts_client
-from app.integrations.oss import get_oss_client
+from app.integrations.dashscope import ASRClient, LLMClient, TTSClient
+from app.integrations.oss import OSSClient
 from app.models import TaskStatus
 from app.services import TaskService, StorageService
 from app.utils.ffmpeg import FFmpegHelper
 from .celery_app import celery_app
+
+
+def _run_async(coro):
+    """在 Celery worker 进程内复用事件循环执行异步协程。"""
+    loop = getattr(_run_async, "_loop", None)
+    if loop is None or loop.is_closed():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        _run_async._loop = loop
+    return loop.run_until_complete(coro)
 
 
 # ==================== 任务链主入口 ====================
@@ -134,9 +145,7 @@ def extract_audio_task(self, task_id: str):
                 import shutil
                 shutil.rmtree(temp_dir)
 
-        import asyncio
-
-        asyncio.run(_extract())
+        _run_async(_extract())
 
         # 更新进度
         _update_task_status(task_id, TaskStatus.EXTRACTING, progress=20)
@@ -191,41 +200,41 @@ def transcribe_audio_task(self, previous_result, task_id: str):
                 logger.info(f"Downloaded audio for ASR: {local_audio}")
 
                 # 语音识别
-                asr_client = get_asr_client()
-                result = asr_client.transcribe(
-                    local_audio, language_hints=[task.source_language]
+                asr_client = ASRClient()
+                audio_url = storage_service.get_download_url(
+                    task.extracted_audio_path, expires=3600
                 )
+                result = asr_client.transcribe(audio_url)
 
                 logger.info(
-                    f"ASR completed: {len(result.sentences)} sentences, "
-                    f"{len(result.words)} words"
+                    f"ASR completed: {len(result.segments)} segments, "
+                    f"duration={result.duration_ms}ms"
                 )
 
                 # 创建分段
-                for i, sentence in enumerate(result.sentences):
+                for i, segment in enumerate(result.segments):
                     await task_service.create_segment(
                         task_id=UUID(task_id),
                         segment_index=i,
-                        start_time_ms=sentence.start_time_ms,
-                        end_time_ms=sentence.end_time_ms,
-                        original_text=sentence.text,
-                        speaker_id=getattr(sentence, "speaker_id", None),
-                        confidence=getattr(sentence, "confidence", None),
+                        start_time_ms=segment.start_time_ms,
+                        end_time_ms=segment.end_time_ms,
+                        original_text=segment.text,
+                        speaker_id=getattr(segment, "speaker_id", None),
+                        confidence=getattr(segment, "confidence", None),
+                        emotion=getattr(segment, "emotion", None),
                     )
 
                 # 更新分段数量
-                task.segment_count = len(result.sentences)
+                task.segment_count = len(result.segments)
                 await db.commit()
 
-                logger.info(f"Created {len(result.sentences)} segments")
+                logger.info(f"Created {len(result.segments)} segments")
 
                 # 清理临时文件
                 import shutil
                 shutil.rmtree(temp_dir)
 
-        import asyncio
-
-        asyncio.run(_transcribe())
+        _run_async(_transcribe())
 
         # 更新进度
         _update_task_status(task_id, TaskStatus.TRANSCRIBING, progress=40)
@@ -271,44 +280,88 @@ def translate_segments_task(self, previous_result, task_id: str):
                     raise ValueError(f"Task {task_id} not found")
 
                 segments = task.segments
-                logger.info(f"Translating {len(segments)} segments")
+                logger.info(f"Translating {len(segments)} segments (full context mode)")
 
                 # 翻译客户端
-                llm_client = get_llm_client()
+                llm_client = LLMClient()
 
-                # 批量翻译
-                for i, segment in enumerate(segments):
-                    if not segment.original_text:
-                        continue
+                # 构建全文（带分段标记）
+                full_text_lines = []
+                for i, seg in enumerate(segments):
+                    if seg.original_text:
+                        full_text_lines.append(f"[{i}] {seg.original_text}")
 
-                    try:
-                        translated = llm_client.translate(
-                            text=segment.original_text,
-                            source_lang=task.source_language,
-                            target_lang=task.target_language,
-                        )
+                full_text = "\n".join(full_text_lines)
+
+                logger.info(f"Full text to translate ({len(full_text)} chars):\n{full_text[:200]}...")
+
+                try:
+                    # 全文翻译（保留上下文）
+                    translated_full = llm_client.translate(
+                        text=full_text,
+                        source_lang=task.source_language,
+                        target_lang=task.target_language,
+                    )
+
+                    logger.info(f"Full translation result:\n{translated_full[:200]}...")
+
+                    # 解析翻译结果，匹配回分段
+                    translated_lines = translated_full.split("\n")
+                    translation_map = {}
+
+                    for line in translated_lines:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        # 匹配 [数字] 前缀
+                        import re
+                        match = re.match(r'\[(\d+)\]\s*(.+)', line)
+                        if match:
+                            idx = int(match.group(1))
+                            text = match.group(2).strip()
+                            translation_map[idx] = text
+                        else:
+                            # 无标记的翻译文本，尝试按行号匹配
+                            if len(translation_map) < len(segments):
+                                translation_map[len(translation_map)] = line
+
+                    # 更新各分段翻译
+                    for i, segment in enumerate(segments):
+                        if not segment.original_text:
+                            continue
+
+                        translated = translation_map.get(i, segment.original_text)
 
                         await task_service.update_segment_translation(
                             segment.id, translated
                         )
 
                         logger.debug(
-                            f"Translated segment {i+1}/{len(segments)}: "
-                            f"{segment.original_text[:30]} -> {translated[:30]}"
+                            f"Segment {i}: {segment.original_text[:30]} -> {translated[:30]}"
                         )
 
-                    except Exception as e:
-                        logger.error(f"Failed to translate segment {segment.id}: {e}")
-                        # 翻译失败时保留原文
-                        await task_service.update_segment_translation(
-                            segment.id, segment.original_text
-                        )
+                    logger.info(f"Translation completed: {len(segments)} segments (full context)")
 
-                logger.info(f"Translation completed: {len(segments)} segments")
+                except Exception as e:
+                    logger.error(f"Full translation failed: {e}, falling back to segment-by-segment")
+                    # 降级：逐段翻译
+                    for i, segment in enumerate(segments):
+                        if not segment.original_text:
+                            continue
+                        try:
+                            translated = llm_client.translate(
+                                text=segment.original_text,
+                                source_lang=task.source_language,
+                                target_lang=task.target_language,
+                            )
+                            await task_service.update_segment_translation(segment.id, translated)
+                        except Exception as seg_err:
+                            logger.error(f"Segment {i} translation failed: {seg_err}")
+                            await task_service.update_segment_translation(
+                                segment.id, segment.original_text
+                            )
 
-        import asyncio
-
-        asyncio.run(_translate())
+        _run_async(_translate())
 
         # 更新进度
         _update_task_status(task_id, TaskStatus.TRANSLATING, progress=60)
@@ -372,12 +425,12 @@ def synthesize_audio_task(self, previous_result, task_id: str):
                 )
 
                 # TTS 客户端
-                tts_client = get_tts_client()
+                tts_client = TTSClient()
 
                 # 检查是否使用声音复刻模型
                 from app.config import settings
 
-                use_voice_cloning = settings.tts_model == tts_client.MODEL_QWEN3_VC
+                use_voice_cloning = settings.tts_model in tts_client.VOICE_CLONE_MODELS
 
                 # voice_id 缓存（speaker_id -> voice_id）
                 voice_cache = {}
@@ -440,18 +493,23 @@ def synthesize_audio_task(self, previous_result, task_id: str):
                             if not voice_id:
                                 logger.warning(
                                     f"No voice_id for speaker {speaker_id}, "
-                                    "skipping synthesis"
+                                    f"falling back to system voice for segment {i+1}"
                                 )
-                                continue
+                                # 降级：使用系统音色（必须指定voice）
+                                fallback_tts = TTSClient(
+                                    model="cosyvoice-v1",
+                                    voice="longxiaochun"  # 系统默认音色
+                                )
+                                audio_data = fallback_tts.synthesize(segment.translated_text)
+                            else:
+                                # 保存 voice_id 到分段
+                                segment.voice_id = voice_id
+                                await db.commit()
 
-                            # 保存 voice_id 到分段
-                            segment.voice_id = voice_id
-                            await db.commit()
-
-                            # 合成音频
-                            audio_data = tts_client.synthesize(
-                                segment.translated_text, voice=voice_id
-                            )
+                                # 合成音频
+                                audio_data = tts_client.synthesize(
+                                    segment.translated_text, voice=voice_id
+                                )
                         else:
                             # 使用系统音色
                             audio_data = tts_client.synthesize(segment.translated_text)
@@ -480,9 +538,7 @@ def synthesize_audio_task(self, previous_result, task_id: str):
 
                 shutil.rmtree(temp_dir)
 
-        import asyncio
-
-        asyncio.run(_synthesize())
+        _run_async(_synthesize())
 
         # 更新进度
         _update_task_status(task_id, TaskStatus.SYNTHESIZING, progress=80)
@@ -556,7 +612,9 @@ def mux_video_task(self, previous_result, task_id: str):
                 # 合成音频
                 ffmpeg = FFmpegHelper()
                 merged_audio = ffmpeg.merge_audio_segments(
-                    audio_files, output_path=f"{temp_dir}/merged_audio.mp3"
+                    audio_files,
+                    output_path=f"{temp_dir}/merged_audio.mp3",
+                    total_duration_ms=task.video_duration_ms,
                 )
 
                 # 替换视频音轨
@@ -582,9 +640,7 @@ def mux_video_task(self, previous_result, task_id: str):
                 import shutil
                 shutil.rmtree(temp_dir)
 
-        import asyncio
-
-        asyncio.run(_mux())
+        _run_async(_mux())
 
         # 标记任务完成
         _update_task_status(
@@ -629,6 +685,4 @@ def _update_task_status(
                 UUID(task_id), status, current_step, progress, error_message
             )
 
-    import asyncio
-
-    asyncio.run(_update())
+    _run_async(_update())

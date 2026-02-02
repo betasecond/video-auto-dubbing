@@ -3,6 +3,7 @@ API 依赖注入
 """
 
 from typing import AsyncGenerator
+from fastapi import Depends
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,13 +17,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-async def get_task_service(db: AsyncSession = None) -> TaskService:
+async def get_task_service(
+    db: AsyncSession = Depends(get_db),
+) -> AsyncGenerator[TaskService, None]:
     """获取任务服务（依赖注入）"""
-    if db is None:
-        async for session in get_db():
-            yield TaskService(session)
-    else:
-        return TaskService(db)
+    yield TaskService(db)
 
 
 def get_storage_service() -> StorageService:
