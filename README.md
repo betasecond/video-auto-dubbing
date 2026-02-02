@@ -1,96 +1,98 @@
-# Video Auto Dubbing System (DeepV)
+# 视频自动配音系统 (DeepV)
 
-> **Updated: Feb 2026** | **Architecture: Python (FastAPI) + Next.js**
+> **[English](README_EN.md) | [中文](README.md)**
+>
+> **更新时间：2026年2月** | **架构：Python (FastAPI) + Next.js**
 
-A high-performance video localization system that automatically dubs videos into other languages. It combines advanced ASR (Speech Recognition), LLM-based Translation, and Real-time Voice Cloning TTS to produce high-quality, lip-sync-aligned dubbed videos.
-
----
-
-## 🌟 Key Features
-
-*   **Real-time Voice Cloning**: Clones the original speaker's voice using **Aliyun Qwen3-TTS-VC**.
-*   **Intelligent Audio Alignment**:
-    *   **Isotonic Translation**: LLM prompts ensure translated text fits the original timeframe.
-    *   **Smart Acceleration**: Automatically accelerates audio (up to 4x) to fit slots without overlap.
-*   **High-Quality Translation**: Context-aware full-text translation using **Qwen-Turbo**.
-*   **Modern Stack**:
-    *   **Backend**: Python 3.11, FastAPI, Celery (Redis), SQLAlchemy.
-    *   **Frontend**: Next.js 14, Tailwind CSS, shadcn/ui.
-    *   **Infrastructure**: Docker Compose v2.
+这是一个高性能的视频本地化系统，能够自动将视频配音翻译成其他语言。系统结合了先进的 ASR（语音识别）、LLM（大模型翻译）和实时声音复刻 TTS 技术，生成高质量、唇形与时间轴对齐的配音视频。
 
 ---
 
-## 🚀 Quick Start
+## 🌟 核心特性
 
-### Prerequisites
+*   **实时声音复刻**：集成 **阿里云 Qwen3-TTS-VC**，仅需极短音频即可完美克隆原说话人音色。
+*   **智能音画对齐（双层优化）**：
+    *   **意译优化**：通过精心设计的 Prompt 引导 LLM 输出与原文时长相近的译文。
+    *   **智能加速**：后端自动计算时间槽，对溢出的音频进行智能加速（最高 4x），确保无重叠、无截断。
+*   **高质量翻译**：基于 **Qwen-Turbo** 的全上下文感知翻译，拒绝生硬机翻。
+*   **现代技术栈**：
+    *   **后端**：Python 3.11, FastAPI, Celery (Redis), SQLAlchemy
+    *   **前端**：Next.js 14, Tailwind CSS, shadcn/ui
+    *   **基础设施**：Docker Compose v2 一键部署
+
+---
+
+## 🚀 快速开始
+
+### 准备工作
 *   Docker & Docker Compose v2
-*   Aliyun DashScope API Key (for ASR, LLM, TTS)
-*   Aliyun OSS (Object Storage)
+*   阿里云百炼 (DashScope) API Key (用于 ASR, LLM, TTS)
+*   阿里云 OSS (对象存储)
 
-### 1. Clone & Configure
+### 1. 克隆与配置
 ```bash
 git clone <repository_url> video-auto-dubbing
 cd video-auto-dubbing
 
-# Copy environment template
+# 复制环境变量模板
 cp .env.example .env
 ```
 
-### 2. Set Environment Variables
-Edit `.env` and fill in your credentials:
+### 2. 设置环境变量
+编辑 `.env` 文件，填入你的密钥：
 ```ini
-# Aliyun DashScope (Required for ASR, LLM, TTS)
+# 阿里云百炼 (DashScope)
 DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
 
-# Aliyun OSS (Required for file storage)
+# 阿里云 OSS (用于文件存储)
 OSS_ACCESS_KEY_ID=LTAIxxxxxxxx
 OSS_ACCESS_KEY_SECRET=xxxxxxxxxxxxxxxx
 OSS_ENDPOINT=oss-cn-shanghai.aliyuncs.com
 OSS_BUCKET=your-bucket-name
 ```
 
-### 3. Start System
+### 3. 启动系统
 ```bash
 docker compose up -d
 ```
-Access the dashboard at **http://localhost:3000**.
+启动后访问管理后台：**http://localhost:3000**
 
 ---
 
-## 📚 Documentation
+## 📚 文档中心
 
-### Getting Started
-*   **[Start Here](docs/guide/start-here.md)**: Main entry point and project roadmap.
-*   **[Quick Start Guide](docs/guide/quickstart.md)**: Detailed setup and deployment instructions.
+### 入门指南
+*   **[新手必读](docs/guide/start-here.md)**：项目路线图与快速指引。
+*   **[详细部署指南](docs/guide/quickstart.md)**：完整的安装与环境配置说明。
 
-### Architecture & Design
-*   **[System Overview](docs/architecture/system-overview.md)**: High-level architecture and component diagrams.
-*   **[Optimization Report](docs/architecture/optimization.md)**: Deep dive into voice cloning and audio alignment algorithms.
+### 架构与设计
+*   **[系统概览](docs/architecture/system-overview.md)**：高层架构图与组件说明。
+*   **[核心优化报告](docs/architecture/optimization.md)**：深入解析声音复刻与音画对齐算法。
 
-### Development
-*   **[Frontend Guide](docs/guide/frontend.md)**: Next.js frontend structure and features.
-*   **[API Documentation](docs/api/backend-api.md)**: Backend REST API specifications.
+### 开发手册
+*   **[前端开发指南](docs/guide/frontend.md)**：Next.js 项目结构与组件说明。
+*   **[API 文档](docs/api/backend-api.md)**：后端 REST API 接口定义。
 
 ---
 
-## 🛠 Development
+## 🛠 本地开发
 
-### Backend (Python)
+### 后端 (Python)
 ```bash
 cd backend
 uv sync
 uv run uvicorn app.main:app --reload
 ```
 
-### Frontend (Next.js)
+### 前端 (Next.js)
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-### Diagnostics
-Run the integrated service check tool to verify your connections:
+### 服务诊断
+运行内置的诊断工具，检查所有云服务连接状态：
 ```bash
 cd backend
 python scripts/check_services.py
@@ -98,5 +100,5 @@ python scripts/check_services.py
 
 ---
 
-## 📄 License
+## 📄 开源协议
 MIT License.
