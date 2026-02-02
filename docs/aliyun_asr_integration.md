@@ -83,36 +83,48 @@ ALIYUN_ASR_REQUEST_TIMEOUT=60                  # 请求超时时间(秒) (可选
 }
 ```
 
-### 响应格式
+### 响应格式（异步调用）
 
+**1. 提交任务响应:**
 ```json
 {
+  "request_id": "xxx-xxx",
   "output": {
-    "choices": [
-      {
-        "finish_reason": "stop",
-        "message": {
-          "role": "assistant",
-          "content": [
-            {
-              "text": "识别的文本内容"
-            }
-          ],
-          "annotations": [
-            {
-              "type": "audio_info",
-              "language": "zh",
-              "emotion": "neutral"
-            }
-          ]
-        }
-      }
-    ]
-  },
-  "usage": {
-    "seconds": 2
-  },
-  "request_id": "xxx-xxx-xxx"
+    "task_id": "8fab76d0-xxxx",
+    "task_status": "PENDING"
+  }
+}
+```
+
+**2. 查询结果响应（成功）:**
+```json
+{
+  "request_id": "xxx-xxx",
+  "output": {
+    "task_id": "8fab76d0-xxxx",
+    "task_status": "SUCCEEDED",
+    "result": {
+      "transcription_url": "https://..."
+    }
+  }
+}
+```
+
+**3. 转写结果:**
+```json
+{
+  "transcripts": [{
+    "channel_id": 0,
+    "text": "欢迎使用阿里云。",
+    "sentences": [{
+      "sentence_id": 0,
+      "begin_time": 0,
+      "end_time": 1440,
+      "language": "zh",
+      "emotion": "neutral",
+      "text": "欢迎使用阿里云。"
+    }]
+  }]
 }
 ```
 
@@ -128,11 +140,14 @@ import (
 
 // 创建阿里云 ASR 客户端
 cfg := asr.AliyunASRConfig{
-    APIKey:         "sk-xxxxxxxxxxxxx",
-    Model:          "qwen3-asr-flash",
-    EnableITN:      true,
-    Language:       "", // 留空自动检测
-    RequestTimeout: 60,
+    APIKey:              "sk-xxxxxxxxxxxxx",
+    Model:               "qwen3-asr-flash-filetrans",
+    EnableITN:           true,
+    EnableWords:         false,
+    Language:            "", // 留空自动检测
+    RequestTimeout:      30,
+    PollIntervalSeconds: 2,
+    PollTimeoutSeconds:  900,
 }
 
 client := asr.NewAliyunClient(cfg, logger)
@@ -151,15 +166,15 @@ fmt.Printf("检测语言: %s\n", result.Language)
 
 | 特性 | 阿里云 ASR | 火山引擎 ASR |
 |------|-----------|-------------|
-| 调用方式 | 同步 HTTP | 异步轮询 |
-| 时间戳 | ❌ 同步API无时间戳 | ✅ 支持 |
+| 调用方式 | 异步轮询 | 异步轮询 |
+| 时间戳 | ✅ 支持（句级+词级） | ✅ 支持 |
 | 说话人分离 | ❌ 不支持 | ✅ 支持(最多10人) |
-| 情绪检测 | ⚠️ 基础支持 | ✅ 完整支持 |
+| 情绪检测 | ✅ 完整支持 | ✅ 完整支持 |
 | 性别检测 | ❌ 不支持 | ✅ 支持 |
 | 语言检测 | ✅ 自动检测 | ⚠️ 需要指定 |
 | 文本规范化 | ✅ 支持(中英文) | ✅ 支持 |
-| 响应速度 | ⚡ 快速 | ⏱️ 需轮询 |
-| 集成复杂度 | 🟢 简单 | 🟡 中等 |
+| 响应速度 | ⏱️ 异步轮询 | ⏱️ 异步轮询 |
+| 集成复杂度 | 🟡 中等 | 🟡 中等 |
 
 ## 限制说明
 
