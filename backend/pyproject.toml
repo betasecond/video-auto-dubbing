@@ -1,0 +1,102 @@
+[project]
+name = "video-dubbing-backend"
+version = "2.0.0"
+description = "视频自动配音系统后端 - Python FastAPI 重构版"
+authors = [
+    {name = "Video Dubbing Team"}
+]
+requires-python = ">=3.11"
+readme = "README.md"
+license = {text = "MIT"}
+
+dependencies = [
+    # Web 框架
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "python-multipart>=0.0.6",  # 文件上传
+
+    # 数据库
+    "sqlalchemy>=2.0.25",
+    "alembic>=1.13.1",
+    "psycopg2-binary>=2.9.9",  # PostgreSQL
+
+    # 任务队列
+    "celery[redis]>=5.3.6",
+    "redis>=5.0.1",
+
+    # 阿里云服务
+    "dashscope>=1.14.1",  # DashScope SDK (ASR, LLM, TTS)
+    "oss2>=2.18.4",       # 阿里云 OSS
+
+    # OpenAI 兼容 (LLM)
+    "openai>=1.12.0",
+
+    # WebSocket
+    "websockets>=12.0",
+
+    # 工具库
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.1.0",
+    "python-dotenv>=1.0.0",
+    "tenacity>=8.2.3",  # 重试
+    "httpx>=0.26.0",    # HTTP 客户端
+
+    # 音视频处理
+    "ffmpeg-python>=0.2.0",
+
+    # 日志
+    "loguru>=0.7.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    # 开发工具
+    "pytest>=7.4.4",
+    "pytest-asyncio>=0.23.3",
+    "pytest-cov>=4.1.0",
+    "black>=24.1.1",
+    "ruff>=0.1.14",
+    "mypy>=1.8.0",
+
+    # 类型检查
+    "types-redis>=4.6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
