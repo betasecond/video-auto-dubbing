@@ -14,6 +14,7 @@ type RabbitMQConfig = sharedconfig.RabbitMQConfig
 type TTSConfig = sharedconfig.TTSConfig
 type ExternalConfig = sharedconfig.ExternalConfig
 type VolcengineASRConfig = sharedconfig.VolcengineASRConfig
+type AliyunASRConfig = sharedconfig.AliyunASRConfig
 type GLMConfig = sharedconfig.GLMConfig
 
 // Config holds all configuration for the worker.
@@ -22,6 +23,12 @@ type Config struct {
 	FFmpeg     FFmpegConfig
 	Processing ProcessingConfig
 	Timeouts   StepTimeouts
+	ASR        ASRConfig
+}
+
+// ASRConfig holds ASR service configuration.
+type ASRConfig struct {
+	Backend string // ASR backend: "volcengine" (default), "aliyun"
 }
 
 // FFmpegConfig holds FFmpeg configuration.
@@ -70,6 +77,7 @@ func Load() (*Config, error) {
 	v := loader.Viper()
 	v.SetDefault("FFMPEG_PATH", "/usr/bin/ffmpeg")
 	v.SetDefault("FFMPEG_DENOISE_FILTER", "afftdn=nr=12:nf=-25")
+	v.SetDefault("ASR_BACKEND", "volcengine")
 	v.SetDefault("TRANSLATE_BATCH_SIZE", 20)
 	v.SetDefault("TRANSLATE_ITEM_MAX_RETRIES", 2)
 	v.SetDefault("TRANSLATE_MAX_TEXT_LENGTH", 4000)
@@ -92,6 +100,9 @@ func Load() (*Config, error) {
 		FFmpeg: FFmpegConfig{
 			Path:          v.GetString("FFMPEG_PATH"),
 			DenoiseFilter: v.GetString("FFMPEG_DENOISE_FILTER"),
+		},
+		ASR: ASRConfig{
+			Backend: v.GetString("ASR_BACKEND"),
 		},
 		Processing: ProcessingConfig{
 			Translate: TranslateConfig{
@@ -127,6 +138,27 @@ func ValidateVolcengineASR(cfg *sharedconfig.BaseConfig) error {
 		return fmt.Errorf("VOLCENGINE_ASR_ACCESS_KEY is required (configure via settings or environment)")
 	}
 	return nil
+}
+
+// ValidateAliyunASR validates that Aliyun ASR credentials are configured.
+// This is used at runtime when ASR is needed, not at startup.
+func ValidateAliyunASR(cfg *sharedconfig.BaseConfig) error {
+	if cfg.External.AliyunASR.APIKey == "" {
+		return fmt.Errorf("ALIYUN_ASR_API_KEY is required (configure via settings or environment)")
+	}
+	return nil
+}
+
+// ValidateASRBackend validates ASR configuration based on the selected backend.
+func ValidateASRBackend(cfg *Config) error {
+	switch cfg.ASR.Backend {
+	case "volcengine":
+		return ValidateVolcengineASR(&cfg.BaseConfig)
+	case "aliyun":
+		return ValidateAliyunASR(&cfg.BaseConfig)
+	default:
+		return fmt.Errorf("unsupported ASR backend: %s (supported: volcengine, aliyun)", cfg.ASR.Backend)
+	}
 }
 
 // ValidateTTSConfig validates that TTS service is configured.

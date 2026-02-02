@@ -78,7 +78,9 @@ type TTSConfig struct {
 // ExternalConfig holds external API configuration.
 type ExternalConfig struct {
 	VolcengineASR VolcengineASRConfig
-	GLM          GLMConfig
+	AliyunASR     AliyunASRConfig
+	GLM           GLMConfig
+	DashScope     DashScopeLLMConfig
 }
 
 // VolcengineASRConfig holds Volcengine ASR API configuration.
@@ -99,12 +101,29 @@ type VolcengineASRConfig struct {
 	PollTimeoutSeconds  int // 轮询超时 (秒)
 }
 
+// AliyunASRConfig holds Aliyun DashScope ASR API configuration.
+type AliyunASRConfig struct {
+	APIKey         string // DashScope API Key
+	Model          string // 模型名称，默认 qwen3-asr-flash
+	EnableITN      bool   // 启用文本规范化（仅支持中英文）
+	Language       string // 语言代码（可选）：zh, en, yue, ja 等
+	RequestTimeout int    // 请求超时时间（秒）
+}
+
 // GLMConfig holds GLM API configuration.
 type GLMConfig struct {
 	APIKey string
 	APIURL string
 	Model  string
 	RPS    float64
+}
+
+// DashScopeLLMConfig holds Aliyun DashScope LLM API configuration for translation.
+type DashScopeLLMConfig struct {
+	APIKey  string  // DashScope API Key
+	BaseURL string  // Base URL for DashScope API
+	Model   string  // Model name, e.g., qwen-turbo, qwen-plus
+	RPS     float64 // Rate limit (requests per second)
 }
 
 // Option customizes the Loader behaviour.
@@ -152,6 +171,11 @@ func NewLoader(opts ...Option) *loader {
 		"GLM_API_URL":           "https://open.bigmodel.cn/api/paas/v4/chat/completions",
 		"GLM_MODEL":             "glm-4-flash",
 		"GLM_RPS":               5.0,
+		// DashScope LLM defaults
+		"DASHSCOPE_LLM_API_KEY":  "",
+		"DASHSCOPE_LLM_BASE_URL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+		"DASHSCOPE_LLM_MODEL":    "qwen-turbo",
+		"DASHSCOPE_LLM_RPS":      5.0,
 		// Volcengine ASR defaults
 		"VOLCENGINE_ASR_APP_KEY":              "",
 		"VOLCENGINE_ASR_ACCESS_KEY":           "",
@@ -160,9 +184,15 @@ func NewLoader(opts ...Option) *loader {
 		"VOLCENGINE_ASR_ENABLE_EMOTION":       true,
 		"VOLCENGINE_ASR_ENABLE_GENDER":        true,
 		"VOLCENGINE_ASR_ENABLE_PUNC":          true,
-		"VOLCENGINE_ASR_ENABLE_ITN":           true,
+		"VOLCENGINE_ASR_ENABLE_ITN":            true,
 		"VOLCENGINE_ASR_POLL_INTERVAL_SECONDS": 2,
 		"VOLCENGINE_ASR_POLL_TIMEOUT_SECONDS":  900,
+		// Aliyun ASR defaults
+		"ALIYUN_ASR_API_KEY":         "",
+		"ALIYUN_ASR_MODEL":           "qwen3-asr-flash",
+		"ALIYUN_ASR_ENABLE_ITN":      true,
+		"ALIYUN_ASR_LANGUAGE":        "",
+		"ALIYUN_ASR_REQUEST_TIMEOUT": 60,
 	}
 
 	l := &loader{
@@ -277,11 +307,24 @@ func (l *loader) Load() (*BaseConfig, error) {
 				PollIntervalSeconds: l.v.GetInt("VOLCENGINE_ASR_POLL_INTERVAL_SECONDS"),
 				PollTimeoutSeconds:  l.v.GetInt("VOLCENGINE_ASR_POLL_TIMEOUT_SECONDS"),
 			},
+			AliyunASR: AliyunASRConfig{
+				APIKey:         l.v.GetString("ALIYUN_ASR_API_KEY"),
+				Model:          l.v.GetString("ALIYUN_ASR_MODEL"),
+				EnableITN:      l.v.GetBool("ALIYUN_ASR_ENABLE_ITN"),
+				Language:       l.v.GetString("ALIYUN_ASR_LANGUAGE"),
+				RequestTimeout: l.v.GetInt("ALIYUN_ASR_REQUEST_TIMEOUT"),
+			},
 			GLM: GLMConfig{
 				APIKey: l.v.GetString("GLM_API_KEY"),
 				APIURL: l.v.GetString("GLM_API_URL"),
 				Model:  l.v.GetString("GLM_MODEL"),
 				RPS:    l.v.GetFloat64("GLM_RPS"),
+			},
+			DashScope: DashScopeLLMConfig{
+				APIKey:  l.v.GetString("DASHSCOPE_LLM_API_KEY"),
+				BaseURL: l.v.GetString("DASHSCOPE_LLM_BASE_URL"),
+				Model:   l.v.GetString("DASHSCOPE_LLM_MODEL"),
+				RPS:     l.v.GetFloat64("DASHSCOPE_LLM_RPS"),
 			},
 		},
 	}

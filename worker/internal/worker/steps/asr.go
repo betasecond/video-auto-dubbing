@@ -46,13 +46,27 @@ func (p *ASRProcessor) Process(ctx context.Context, taskID uuid.UUID, msg models
 		return fmt.Errorf("failed to get effective config: %w", err)
 	}
 
-	// Validate ASR configuration
+	// Determine ASR backend
+	asrBackend := asr.BackendVolcengine // default
+	if effectiveConfig.ASR.Backend == "aliyun" {
+		asrBackend = asr.BackendAliyun
+	}
+
+	p.deps.Logger.Info("Using ASR backend",
+		zap.String("task_id", taskID.String()),
+		zap.String("backend", string(asrBackend)),
+	)
+
+	// Validate ASR configuration for the selected backend
 	if err := effectiveConfig.ValidateForASR(); err != nil {
 		return fmt.Errorf("ASR configuration validation failed: %w", err)
 	}
 
 	// Create ASR client with effective configuration
-	asrClient := asr.NewClient(effectiveConfig.External.VolcengineASR, p.deps.Logger)
+	asrClient, err := asr.NewClientWithBackend(asrBackend, &effectiveConfig.BaseConfig, p.deps.Logger)
+	if err != nil {
+		return fmt.Errorf("failed to create ASR client: %w", err)
+	}
 
 	// Generate presigned URL for audio (ASR service needs to download it)
 	audioURL, err := p.deps.Storage.PresignedGetURL(ctx, payload.AudioKey, 1*time.Hour)

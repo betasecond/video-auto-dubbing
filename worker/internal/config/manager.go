@@ -56,7 +56,7 @@ type EffectiveConfig struct {
 
 // ValidateForASR validates that ASR configuration is complete.
 func (c *EffectiveConfig) ValidateForASR() error {
-	return ValidateVolcengineASR(&c.BaseConfig)
+	return ValidateASRBackend(&c.Config)
 }
 
 // ValidateForTTS validates that TTS configuration is complete.
