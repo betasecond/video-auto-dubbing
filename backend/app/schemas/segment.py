@@ -42,6 +42,7 @@ class SegmentResponse(SegmentBase):
 
     id: UUID
     task_id: UUID
+    voice_id: Optional[str] = Field(None, description="声音复刻 ID（voice_id）")
     audio_path: Optional[str] = None
     created_at: datetime
     updated_at: datetime

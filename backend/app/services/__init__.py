@@ -4,5 +4,6 @@
 
 from .task_service import TaskService
 from .storage_service import StorageService
+from .voice_service import VoiceService
 
-__all__ = ["TaskService", "StorageService"]
+__all__ = ["TaskService", "StorageService", "VoiceService"]

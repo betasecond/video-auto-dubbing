@@ -327,7 +327,12 @@ def translate_segments_task(self, previous_result, task_id: str):
 @celery_app.task(name="synthesize_audio", bind=True)
 def synthesize_audio_task(self, previous_result, task_id: str):
     """
-    为每个分段合成音频
+    为每个分段合成音频（支持多说话人声音复刻）
+
+    流程:
+    1. 按 speaker_id 分组分段
+    2. 为每个 speaker 复刻声音（获得 voice_id）
+    3. 使用对应的 voice_id 合成每个分段的音频
 
     Args:
         previous_result: 上一步结果（task_id）
@@ -354,11 +359,71 @@ def synthesize_audio_task(self, previous_result, task_id: str):
                 if not task:
                     raise ValueError(f"Task {task_id} not found")
 
+                if not task.extracted_audio_path:
+                    raise ValueError(f"Task {task_id} missing extracted audio")
+
                 segments = task.segments
                 logger.info(f"Synthesizing {len(segments)} segments")
 
+                # 下载原始音频（用于声音复刻）
+                temp_dir = tempfile.mkdtemp(prefix=f"task_{task_id}_tts_")
+                local_audio = storage_service.download_file(
+                    task.extracted_audio_path, temp_dir
+                )
+
                 # TTS 客户端
                 tts_client = get_tts_client()
+
+                # 检查是否使用声音复刻模型
+                from app.config import settings
+
+                use_voice_cloning = settings.tts_model == tts_client.MODEL_QWEN3_VC
+
+                # voice_id 缓存（speaker_id -> voice_id）
+                voice_cache = {}
+
+                if use_voice_cloning:
+                    logger.info("Using voice cloning model, enrolling speakers...")
+
+                    # 按说话人分组
+                    from collections import defaultdict
+
+                    segments_by_speaker = defaultdict(list)
+                    for seg in segments:
+                        speaker_id = seg.speaker_id or "default"
+                        segments_by_speaker[speaker_id].append(
+                            {
+                                "start_time_ms": seg.start_time_ms,
+                                "end_time_ms": seg.end_time_ms,
+                            }
+                        )
+
+                    logger.info(
+                        f"Found {len(segments_by_speaker)} speakers: "
+                        f"{list(segments_by_speaker.keys())}"
+                    )
+
+                    # 为每个说话人复刻声音
+                    from app.services.voice_service import VoiceService
+
+                    voice_service = VoiceService()
+
+                    for speaker_id, speaker_segments in segments_by_speaker.items():
+                        voice_id = voice_service.get_or_create_voice_id(
+                            task_id=UUID(task_id),
+                            speaker_id=speaker_id,
+                            audio_path=local_audio,
+                            segments=speaker_segments,
+                            cache=voice_cache,
+                        )
+
+                        if not voice_id:
+                            logger.error(
+                                f"Failed to enroll speaker {speaker_id}, "
+                                "using default voice"
+                            )
+
+                    logger.info(f"Voice enrollment completed: {voice_cache}")
 
                 # 为每个分段合成音频
                 for i, segment in enumerate(segments):
@@ -367,8 +432,29 @@ def synthesize_audio_task(self, previous_result, task_id: str):
                         continue
 
                     try:
-                        # 合成音频
-                        audio_data = tts_client.synthesize(segment.translated_text)
+                        # 确定使用的 voice
+                        if use_voice_cloning:
+                            speaker_id = segment.speaker_id or "default"
+                            voice_id = voice_cache.get(speaker_id)
+
+                            if not voice_id:
+                                logger.warning(
+                                    f"No voice_id for speaker {speaker_id}, "
+                                    "skipping synthesis"
+                                )
+                                continue
+
+                            # 保存 voice_id 到分段
+                            segment.voice_id = voice_id
+                            await db.commit()
+
+                            # 合成音频
+                            audio_data = tts_client.synthesize(
+                                segment.translated_text, voice=voice_id
+                            )
+                        else:
+                            # 使用系统音色
+                            audio_data = tts_client.synthesize(segment.translated_text)
 
                         # 上传到 OSS
                         audio_path = storage_service.upload_segment_audio(
@@ -388,6 +474,11 @@ def synthesize_audio_task(self, previous_result, task_id: str):
                         # 继续处理下一个分段
 
                 logger.info(f"Synthesis completed: {len(segments)} segments")
+
+                # 清理临时文件
+                import shutil
+
+                shutil.rmtree(temp_dir)
 
         import asyncio
 

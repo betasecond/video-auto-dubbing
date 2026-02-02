@@ -44,8 +44,9 @@ class Segment(Base):
     emotion: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
-    # TTS 音频路径 (OSS 相对路径)
-    audio_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # TTS 配置
+    voice_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # 声音复刻 ID（可复用）
+    audio_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # TTS 音频路径
 
     # 时间戳
     created_at: Mapped[datetime] = mapped_column(
