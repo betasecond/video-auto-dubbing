@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// AliyunClient handles TTS API calls to Aliyun DashScope (CosyVoice/Qwen-TTS).
+// AliyunClient handles TTS API calls to Aliyun DashScope (Qwen-TTS).
 type AliyunClient struct {
 	apiKey  string
 	baseURL string
@@ -35,7 +35,7 @@ func NewAliyunClient(cfg config.TTSConfig, logger *zap.Logger) *AliyunClient {
 
 	model := cfg.AliyunModel
 	if model == "" {
-		model = "cosyvoice-v1"
+		model = "qwen-tts-flash"
 	}
 
 	return &AliyunClient{
@@ -58,24 +58,14 @@ type OpenAISpeechRequest struct {
 	Speed          float64 `json:"speed,omitempty"`
 }
 
-// DashScopeNativeRequest represents the Alibaba native API request.
-type DashScopeNativeRequest struct {
-	Model      string                 `json:"model"`
-	Input      DashScopeInput         `json:"input"`
-	Parameters map[string]interface{} `json:"parameters"`
-}
-
-type DashScopeInput struct {
-	Text string `json:"text"`
-}
-
 // Synthesize generates speech using Aliyun API.
 func (c *AliyunClient) Synthesize(ctx context.Context, req SynthesisRequest) (io.ReadCloser, error) {
-	// If PromptAudioURL is present, we try to use the Native API for voice cloning
-	// Note: Direct URL cloning might require specific DashScope capabilities or file upload.
-	// For now, we attempt to pass it in parameters, but fallback to standard OpenAI mode if it's empty.
+	// Qwen-TTS (Flash/Turbo) usually does not support zero-shot cloning via prompt audio.
+	// If PromptAudioURL is present, we log a warning but proceed with the default/specified voice.
 	if req.PromptAudioURL != "" {
-		return c.synthesizeNativeWithClone(ctx, req)
+		c.logger.Warn("PromptAudioURL provided but voice cloning is not supported by qwen-tts-flash. Using specified voice instead.",
+			zap.String("model", c.model),
+			zap.String("prompt_url", req.PromptAudioURL))
 	}
 
 	return c.synthesizeOpenAI(ctx, req)
@@ -84,10 +74,7 @@ func (c *AliyunClient) Synthesize(ctx context.Context, req SynthesisRequest) (io
 func (c *AliyunClient) synthesizeOpenAI(ctx context.Context, req SynthesisRequest) (io.ReadCloser, error) {
 	url := fmt.Sprintf("%s/audio/speech", c.baseURL)
 
-	voice := req.SpeakerID
-	if voice == "" || voice == "default" {
-		voice = "longxiaochun" // Default high-quality voice
-	}
+	voice := c.mapSpeakerToQwenVoice(req.SpeakerID)
 
 	speed := 1.0
 	if req.ProsodyControl != nil {
@@ -121,8 +108,9 @@ func (c *AliyunClient) synthesizeOpenAI(ctx context.Context, req SynthesisReques
 	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 
-	c.logger.Info("Calling Aliyun TTS (OpenAI Compatible)",
+	c.logger.Info("Calling Aliyun TTS (Qwen-TTS)",
 		zap.String("url", url),
+		zap.String("model", c.model),
 		zap.String("voice", voice),
 		zap.Int("text_len", len(req.Text)))
 
@@ -140,79 +128,40 @@ func (c *AliyunClient) synthesizeOpenAI(ctx context.Context, req SynthesisReques
 	return resp.Body, nil
 }
 
-func (c *AliyunClient) synthesizeNativeWithClone(ctx context.Context, req SynthesisRequest) (io.ReadCloser, error) {
-	// Use native endpoint for advanced features like cloning
-	url := "https://dashscope.aliyuncs.com/api/v1/services/audio/text-to-speech/generation"
+// mapSpeakerToQwenVoice maps system speaker IDs to valid Qwen-TTS voice IDs.
+// Ref: https://help.aliyun.com/zh/model-studio/developer-reference/text-to-speech-api-details
+func (c *AliyunClient) mapSpeakerToQwenVoice(speakerID string) string {
+	// Qwen-TTS Voices
+	// Longxiaochun is a standard safe default for many Aliyun models.
+	// Other options: "Cherry" (Knowlegeable female), "Serena" (Affectionate female), "Ethan" (Warm male)
+	defaultVoice := "longxiaochun"
 
-	c.logger.Info("Attempting Aliyun Voice Cloning (Native API)",
-		zap.String("prompt_audio", req.PromptAudioURL))
-
-	params := map[string]interface{}{
-		"text_type": "Plain",
-		"format":    "wav",
+	// If speakerID is empty or default, use defaultVoice
+	if speakerID == "" || speakerID == "default" {
+		return defaultVoice
 	}
 
-	if req.OutputFormat != "" {
-		params["format"] = req.OutputFormat
+	// Known valid Qwen-TTS voices map (simplified list)
+	// Users might pass "male_young", "female_young" from our system.
+	// We need to map them to nearest Qwen equivalents.
+	knownVoices := map[string]string{
+		"male_young":    "Alex",   // Or other suitable male voice
+		"female_young":  "Cherry", // Or "Nini"
+		"male_mature":   "Ethan",
+		"female_mature": "Serena",
+		"longxiaochun":  "longxiaochun",
+		"cherry":        "Cherry",
+		"serena":        "Serena",
+		"ethan":         "Ethan",
+		// Add specific language variants if needed
 	}
 
-	if req.ProsodyControl != nil {
-		if s, ok := req.ProsodyControl["speed"].(float64); ok {
-			params["rate"] = s
-		}
+	if v, exists := knownVoices[strings.ToLower(speakerID)]; exists {
+		return v
 	}
 
-	// Attempt to use prompt_audio_url for cloning.
-	// Note: Actual DashScope API support for direct URL depends on the model version.
-	params["prompt_audio_url"] = req.PromptAudioURL
-
-	// Set base voice
-	if req.SpeakerID != "" && req.SpeakerID != "default" {
-		params["voice"] = req.SpeakerID
-	} else {
-		params["voice"] = "longxiaochun"
-	}
-
-	payload := DashScopeNativeRequest{
-		Model: c.model,
-		Input: DashScopeInput{
-			Text: req.Text,
-		},
-		Parameters: params,
-	}
-
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal native request: %w", err)
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create native request: %w", err)
-	}
-
-	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("aliyun native request failed: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		return nil, fmt.Errorf("aliyun native api error (status %d): %s", resp.StatusCode, string(body))
-	}
-
-	// Check for JSON error response even with 200 OK (some APIs do this)
-	contentType := resp.Header.Get("Content-Type")
-	if strings.Contains(contentType, "application/json") {
-		// It might be an error or metadata, but usually successful audio generation returns audio type.
-		// However, let's return the body stream anyway, caller will fail to process audio if it's JSON.
-		c.logger.Warn("Aliyun native API returned JSON content type, might be an error or metadata",
-			zap.String("content_type", contentType))
-	}
-
-	return resp.Body, nil
+	// If the user passes a specific ID (like "Nofish") that we don't map explicitly,
+	// assume they know what they are doing and pass it through.
+	// DashScope API will error if it's invalid, which is acceptable feedback.
+	return speakerID
 }

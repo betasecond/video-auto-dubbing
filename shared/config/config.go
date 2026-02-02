@@ -148,7 +148,7 @@ func NewLoader(opts ...Option) *loader {
 		"TTS_BACKEND":           "vllm",
 		"DASHSCOPE_API_KEY":     "",
 		"DASHSCOPE_BASE_URL":    "https://dashscope.aliyuncs.com/compatible-mode/v1",
-		"DASHSCOPE_MODEL":       "cosyvoice-v1",
+		"DASHSCOPE_MODEL":       "qwen-tts-flash",
 		"GLM_API_URL":           "https://open.bigmodel.cn/api/paas/v4/chat/completions",
 		"GLM_MODEL":             "glm-4-flash",
 		"GLM_RPS":               5.0,
