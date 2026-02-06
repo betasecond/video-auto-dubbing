@@ -30,9 +30,9 @@ class TaskStatus(str, enum.Enum):
 class SubtitleMode(str, enum.Enum):
     """字幕模式"""
 
-    NONE = "none"              # 不生成字幕
-    EXTERNAL = "external"      # 外挂字幕文件（默认）
-    BURN = "burn"              # 烧录到视频中
+    NONE = "NONE"              # 不生成字幕
+    EXTERNAL = "EXTERNAL"      # 外挂字幕文件（默认）
+    BURN = "BURN"              # 烧录到视频中
 
 
 class Task(Base):

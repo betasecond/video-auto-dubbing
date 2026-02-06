@@ -43,3 +43,6 @@ frontend/coverage/
 test_vedio/
 backup/
 temp/
+
+# Logs
+logs/

@@ -322,3 +322,33 @@ export function getLanguageName(code: string): string {
   const lang = SUPPORTED_LANGUAGES.find((l) => l.code === code);
   return lang?.name || code;
 }
+
+// ==================== Task API 对象 ====================
+
+export const taskApi = {
+  create: async (payload: { video: File; source_language: string; target_language: string; title?: string; subtitle_mode?: SubtitleMode }): Promise<Task> => {
+    return createTask(
+      payload.video,
+      payload.source_language,
+      payload.target_language,
+      payload.title,
+      payload.subtitle_mode
+    );
+  },
+
+  list: async (page: number = 1, pageSize: number = 20, status?: TaskStatus): Promise<TaskListResponse> => {
+    return getTasks(page, pageSize, status);
+  },
+
+  get: async (taskId: string): Promise<TaskDetail> => {
+    return getTask(taskId);
+  },
+
+  delete: async (taskId: string): Promise<void> => {
+    return deleteTask(taskId);
+  },
+
+  getResult: async (taskId: string): Promise<DownloadUrlResponse> => {
+    return getDownloadUrl(taskId);
+  },
+};

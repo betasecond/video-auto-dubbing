@@ -104,7 +104,7 @@ export default function TaskDetailPage({ params }: { params: { id: string } }) {
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto px-4 py-8">
       {/* 返回按钮 */}
       <Link
         href="/tasks"

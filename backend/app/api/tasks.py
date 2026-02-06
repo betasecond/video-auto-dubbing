@@ -58,7 +58,8 @@ async def create_task(
     # 验证字幕模式
     from app.models import SubtitleMode
     try:
-        subtitle_mode_enum = SubtitleMode(subtitle_mode)
+        # 将前端传来的小写值转为大写以匹配枚举
+        subtitle_mode_enum = SubtitleMode(subtitle_mode.upper())
     except ValueError:
         raise HTTPException(
             status_code=400,
