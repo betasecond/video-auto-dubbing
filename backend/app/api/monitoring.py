@@ -38,11 +38,14 @@ async def health_check() -> dict[str, Any]:
 
     # 检查 Redis
     try:
-        from app.workers.celery_app import celery_app
+        from app.config import settings
+        import redis
 
-        celery_app.backend.ping()
+        r = redis.from_url(settings.redis_url)
+        r.ping()
         services["redis"] = True
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Redis health check failed: {e}")
         services["redis"] = False
 
     # 检查数据库
