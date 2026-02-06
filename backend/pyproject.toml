@@ -97,3 +97,7 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 asyncio_mode = "auto"
+
+[tool.uv]
+# 使用阿里云 PyPI 镜像加速下载
+index-url = "https://mirrors.aliyun.com/pypi/simple"
