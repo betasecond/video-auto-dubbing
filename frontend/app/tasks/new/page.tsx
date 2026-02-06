@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Upload, AlertCircle, Sparkles, Languages as LanguagesIcon, FileVideo } from 'lucide-react';
+import { ArrowLeft, Upload, AlertCircle, Sparkles, Languages as LanguagesIcon, FileVideo, Subtitles } from 'lucide-react';
 import Link from 'next/link';
-import { createTask, SUPPORTED_LANGUAGES, formatFileSize } from '@/lib/api';
+import { createTask, SUPPORTED_LANGUAGES, formatFileSize, SubtitleMode } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,7 @@ export default function NewTaskPage() {
   const [title, setTitle] = useState('');
   const [sourceLanguage, setSourceLanguage] = useState('zh');
   const [targetLanguage, setTargetLanguage] = useState('en');
+  const [subtitleMode, setSubtitleMode] = useState<SubtitleMode>('external');
 
   // UI 状态
   const [uploading, setUploading] = useState(false);
@@ -101,7 +102,7 @@ export default function NewTaskPage() {
     try {
       setUploading(true);
 
-      const task = await createTask(file, sourceLanguage, targetLanguage, title);
+      const task = await createTask(file, sourceLanguage, targetLanguage, title, subtitleMode);
 
       // 跳转到任务详情页
       router.push(`/tasks/${task.id}`);
@@ -277,6 +278,51 @@ export default function NewTaskPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 字幕配置卡片 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Subtitles className="w-5 h-5 text-emerald-600" />
+              字幕配置
+            </CardTitle>
+            <CardDescription>选择是否生成字幕以及字幕模式</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label htmlFor="subtitle-mode">字幕模式</Label>
+              <Select
+                value={subtitleMode}
+                onValueChange={(value) => setSubtitleMode(value as SubtitleMode)}
+                disabled={uploading}
+              >
+                <SelectTrigger id="subtitle-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="external">
+                    <div className="flex flex-col">
+                      <span>外挂字幕（推荐）</span>
+                      <span className="text-xs text-muted-foreground">生成独立 .ass 字幕文件，可单独下载</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="burn">
+                    <div className="flex flex-col">
+                      <span>烧录字幕</span>
+                      <span className="text-xs text-muted-foreground">将字幕嵌入视频画面，无法关闭</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="none">
+                    <div className="flex flex-col">
+                      <span>不生成字幕</span>
+                      <span className="text-xs text-muted-foreground">仅配音，不添加任何字幕</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>

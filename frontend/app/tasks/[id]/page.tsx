@@ -14,6 +14,7 @@ import {
   Mic,
   AlertCircle,
   CheckCircle,
+  Subtitles,
 } from 'lucide-react';
 import {
   getTask,
@@ -30,6 +31,7 @@ export default function TaskDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingSubtitle, setDownloadingSubtitle] = useState(false);
 
   // 使用 SWR 自动刷新任务详情
   const { data: task, error, isLoading, mutate } = useSWR(
@@ -74,6 +76,23 @@ export default function TaskDetailPage({ params }: { params: { id: string } }) {
       alert(`获取下载链接失败：${err.message}`);
     } finally {
       setDownloading(false);
+    }
+  };
+
+  // 下载字幕
+  const handleDownloadSubtitle = async () => {
+    try {
+      setDownloadingSubtitle(true);
+      const { subtitle_url } = await getDownloadUrl(params.id);
+      if (subtitle_url) {
+        window.open(subtitle_url, '_blank');
+      } else {
+        alert('该任务没有字幕文件');
+      }
+    } catch (err: any) {
+      alert(`获取字幕链接失败：${err.message}`);
+    } finally {
+      setDownloadingSubtitle(false);
     }
   };
 
@@ -151,14 +170,27 @@ export default function TaskDetailPage({ params }: { params: { id: string } }) {
             </button>
 
             {task.status === 'completed' && (
-              <button
-                onClick={handleDownload}
-                disabled={downloading}
-                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                {downloading ? '获取中...' : '下载结果'}
-              </button>
+              <>
+                <button
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  {downloading ? '获取中...' : '下载视频'}
+                </button>
+
+                {task.subtitle_file_path && task.subtitle_mode === 'EXTERNAL' && (
+                  <button
+                    onClick={handleDownloadSubtitle}
+                    disabled={downloadingSubtitle}
+                    className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  >
+                    <Subtitles className="w-4 h-4" />
+                    {downloadingSubtitle ? '获取中...' : '下载字幕'}
+                  </button>
+                )}
+              </>
             )}
 
             <button
@@ -210,7 +242,13 @@ export default function TaskDetailPage({ params }: { params: { id: string } }) {
             <div>
               <p className="font-medium text-green-900">处理完成</p>
               <p className="text-sm text-green-800 mt-1">
-                视频已成功配音，点击上方"下载结果"按钮获取配音后的视频
+                视频已成功配音，点击上方按钮下载结果
+                {task.subtitle_file_path && task.subtitle_mode === 'EXTERNAL' && (
+                  <span>（含外挂字幕文件）</span>
+                )}
+                {task.subtitle_mode === 'BURN' && (
+                  <span>（字幕已烧录到视频中）</span>
+                )}
               </p>
             </div>
           </div>
