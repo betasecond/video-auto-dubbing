@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { taskApi } from '@/lib/api';
-import { Task, TaskCreatePayload, TaskListResponse } from '@/lib/types';
+import { taskApi, type Task, type TaskListResponse, type TaskStatus } from '@/lib/api';
+import { type TaskCreatePayload } from '@/lib/types';
 
 // ==================== Hooks ====================
 
@@ -8,7 +8,7 @@ import { Task, TaskCreatePayload, TaskListResponse } from '@/lib/types';
  * 获取任务列表 Hook
  * 支持分页和状态过滤
  */
-export function useTasks(page: number = 1, status?: string) {
+export function useTasks(page: number = 1, status?: TaskStatus) {
   return useQuery({
     queryKey: ['tasks', page, status],
     queryFn: () => taskApi.list(page, 20, status),
@@ -27,7 +27,7 @@ export function useTask(id: string) {
     queryFn: () => taskApi.get(id),
     // 如果任务未完成，缩短轮询间隔
     refetchInterval: (query) => {
-      const task = query.state.data;
+      const task = query.state.data as Task | undefined;
       if (task && task.status !== 'completed' && task.status !== 'failed') {
         return 2000; // 2秒轮询一次
       }
