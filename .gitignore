@@ -46,3 +46,11 @@ temp/
 
 # Logs
 logs/
+
+# Logs
+celery.log
+*.log
+
+# Build artifacts
+frontend/tsconfig.tsbuildinfo
+frontend/pnpm-lock.yaml
