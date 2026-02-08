@@ -115,9 +115,9 @@ video-auto-dubbing/
 
 | 服务 | 地址 | 说明 |
 |------|------|------|
-| 前端 | http://localhost:3000 | Next.js dev server |
-| 后端 | http://localhost:8000 | Uvicorn |
-| API 文档 | http://localhost:8000/api/v1/docs | Swagger UI |
+| 前端 | <http://localhost:3000> | Next.js dev server |
+| 后端 | <http://localhost:8000> | Uvicorn |
+| API 文档 | <http://localhost:8000/api/v1/docs> | Swagger UI |
 | 数据库 | localhost:5433 | 本地 PostgreSQL |
 | Redis | localhost:6379 | 本地 Redis |
 
@@ -125,9 +125,9 @@ video-auto-dubbing/
 
 | 服务 | 地址 | 说明 |
 |------|------|------|
-| 前端 | http://localhost:3000 | Docker 容器 |
-| 后端 | http://localhost:8000 | Docker 容器 |
-| API 文档 | http://localhost:8000/api/v1/docs | Swagger UI |
+| 前端 | <http://localhost:3000> | Docker 容器 |
+| 后端 | <http://localhost:8000> | Docker 容器 |
+| API 文档 | <http://localhost:8000/api/v1/docs> | Swagger UI |
 | 数据库 | 内部网络 | 不对外暴露 |
 | Redis | 内部网络 | 不对外暴露 |
 
@@ -208,6 +208,7 @@ docker-compose exec api pytest
 - 日志：Docker volume `api_logs`, `worker_logs`
 
 查看卷：
+
 ```bash
 docker volume ls
 docker volume inspect video-auto-dubbing_postgres_data
@@ -305,12 +306,14 @@ docker-compose up -d --build
 ### 本地开发
 
 **优点：**
+
 - ✅ 启动快速
 - ✅ 调试方便
 - ✅ 资源占用少
 - ✅ 直接使用 IDE 调试器
 
 **缺点：**
+
 - ❌ 环境依赖复杂
 - ❌ 不同开发者环境可能不一致
 - ❌ 与生产环境差异大
@@ -318,6 +321,7 @@ docker-compose up -d --build
 ### Docker 部署
 
 **优点：**
+
 - ✅ 环境一致性
 - ✅ 一键启动所有服务
 - ✅ 隔离性好
@@ -325,6 +329,7 @@ docker-compose up -d --build
 - ✅ 易于部署和扩展
 
 **缺点：**
+
 - ❌ 首次构建较慢
 - ❌ 资源占用相对多
 - ❌ 调试稍复杂（需进入容器）

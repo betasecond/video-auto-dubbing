@@ -3,13 +3,15 @@
 ## 🎉 项目状态：完全就绪 ✅
 
 ### 本地开发环境 ✅
-- [x] 前端服务正常运行 (http://localhost:3000)
-- [x] 后端 API 正常运行 (http://localhost:8000)
+
+- [x] 前端服务正常运行 (<http://localhost:3000>)
+- [x] 后端 API 正常运行 (<http://localhost:8000>)
 - [x] Celery Worker 正常处理任务
 - [x] Redis 连接正常（无密码）
 - [x] 字幕硬烧录功能测试通过
 
 ### Docker 部署环境 ✅
+
 - [x] Docker 配置文件完整
 - [x] 配置检查脚本验证通过
 - [x] 自动化测试脚本就绪
@@ -23,11 +25,13 @@
 ### 1. Redis 配置统一 ⭐⭐⭐
 
 **问题：**
+
 - 环境变量中设置了密码，实际 Redis 无密码
 - Docker 配置中也设置了密码
 - 导致连接失败
 
 **解决：**
+
 ```bash
 # .env
 # REDIS_PASSWORD=  # 注释掉
@@ -44,11 +48,13 @@ redis:
 ### 2. Celery 任务队列路由 ⭐⭐⭐
 
 **问题：**
+
 - 任务被发送到 `celery` 默认队列
 - Worker 只监听 `default`, `media`, `ai` 队列
 - 任务路由配置模式不匹配实际任务名
 
 **解决：**
+
 ```python
 # backend/app/workers/celery_app.py
 celery_app.conf.task_routes = {
@@ -75,10 +81,12 @@ worker:
 ### 3. 配置文件路径 ⭐⭐
 
 **问题：**
+
 - `backend/app/config.py` 硬编码本地绝对路径
 - Docker 容器中路径不存在
 
 **解决：**
+
 ```python
 # backend/app/config.py
 model_config = SettingsConfigDict(
@@ -94,10 +102,12 @@ model_config = SettingsConfigDict(
 ### 4. 环境变量冲突 ⭐
 
 **问题：**
+
 - 系统环境变量中残留 `REDIS_PASSWORD`
 - 覆盖了 .env 文件配置
 
 **解决：**
+
 ```bash
 unset REDIS_PASSWORD  # 临时清除
 # 或在启动命令中设置
@@ -111,6 +121,7 @@ REDIS_PASSWORD="" uv run celery ...
 ## 📦 新增文件清单
 
 ### 部署相关
+
 | 文件 | 用途 | 优先级 |
 |------|------|--------|
 | `docker-compose.prod.yml` | 生产环境配置 | 🔴 必需 |
@@ -118,6 +129,7 @@ REDIS_PASSWORD="" uv run celery ...
 | `.dockerignore` | 构建优化 | 🟡 推荐 |
 
 ### 文档
+
 | 文件 | 用途 | 优先级 |
 |------|------|--------|
 | `DEPLOYMENT.md` | 部署指南 | 🔴 必需 |
@@ -126,6 +138,7 @@ REDIS_PASSWORD="" uv run celery ...
 | `LOCAL_VS_DOCKER.md` | 对比文档 | 🟢 参考 |
 
 ### 脚本
+
 | 文件 | 用途 | 优先级 |
 |------|------|--------|
 | `docker-test.sh` | 自动化测试 | 🔴 必需 |
@@ -250,11 +263,13 @@ docker-compose -f docker-compose.prod.yml exec api alembic upgrade head
 ### 资源需求
 
 **最低配置：**
+
 - CPU: 2 核
 - 内存: 2GB
 - 磁盘: 10GB
 
 **推荐配置：**
+
 - CPU: 4 核
 - 内存: 4GB
 - 磁盘: 50GB
@@ -264,11 +279,13 @@ docker-compose -f docker-compose.prod.yml exec api alembic upgrade head
 ## 🔐 安全配置
 
 ### 开发环境
+
 - ✅ Redis 无密码（内网）
 - ✅ 数据库默认密码
 - ✅ HTTP 访问
 
 ### 生产环境（必做）
+
 - 🔴 修改数据库密码
 - 🔴 启用 HTTPS
 - 🔴 配置防火墙

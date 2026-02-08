@@ -122,36 +122,41 @@ Internet
 部署完成后，测试以下功能：
 
 1. **前端访问**
+
    ```bash
    curl http://localhost:3000
    # 应返回 HTML 包含 "视频配音"
    ```
 
 2. **后端 API**
+
    ```bash
    curl http://localhost:8000/
    # 应返回 {"message":"Video Dubbing API","version":"2.0.0"}
    ```
 
 3. **数据库连接**
+
    ```bash
    docker-compose exec db psql -U dubbing -d dubbing -c "SELECT 1;"
    ```
 
 4. **Redis 连接**
+
    ```bash
    docker-compose exec redis redis-cli ping
    # 应返回 PONG
    ```
 
 5. **Celery Worker**
+
    ```bash
    docker-compose exec worker celery -A app.workers.celery_app inspect active
    # 应返回 worker 状态
    ```
 
 6. **完整流程测试**
-   - 访问前端 http://localhost:3000
+   - 访问前端 <http://localhost:3000>
    - 上传测试视频
    - 观察任务状态（不应卡在"等待处理"）
    - 查看 worker 日志：`docker-compose logs -f worker`
@@ -173,11 +178,13 @@ Internet
 ### 优化建议
 
 1. **Worker 并发**：设置为 CPU 核心数
+
    ```bash
    WORKER_CONCURRENCY=8
    ```
 
 2. **数据库连接池**：根据并发调整
+
    ```python
    # backend/app/database.py
    pool_size=10
@@ -185,6 +192,7 @@ Internet
    ```
 
 3. **Redis 持久化**：生产环境启用 AOF
+
    ```yaml
    command: redis-server --appendonly yes
    ```
@@ -194,6 +202,7 @@ Internet
 ### 生产环境必做
 
 1. **修改默认密码**
+
    ```bash
    DB_PASSWORD=$(openssl rand -hex 32)
    ```
@@ -207,6 +216,7 @@ Internet
    - 数据库和 Redis 仅内网访问
 
 4. **配置防火墙**
+
    ```bash
    ufw allow 80/tcp
    ufw allow 443/tcp
@@ -214,6 +224,7 @@ Internet
    ```
 
 5. **定期更新**
+
    ```bash
    docker-compose pull
    docker-compose up -d
@@ -276,6 +287,7 @@ services:
 ## ✨ 下一步
 
 1. **本地测试**
+
    ```bash
    ./docker-test.sh
    ```

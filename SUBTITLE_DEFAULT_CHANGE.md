@@ -15,6 +15,7 @@
 ### 前端 (3个文件)
 
 1. **frontend/app/tasks/new/page.tsx**
+
    ```typescript
    // 修改前
    const [subtitleMode, setSubtitleMode] = useState<SubtitleMode>('external');
@@ -34,6 +35,7 @@
    ```
 
 2. **frontend/components/upload-form.tsx**
+
    ```typescript
    // 修改前
    subtitle_mode: 'external',
@@ -50,7 +52,8 @@
 
 ### 后端 (5个文件)
 
-3. **backend/app/api/tasks.py**
+1. **backend/app/api/tasks.py**
+
    ```python
    # 修改前
    subtitle_mode: str = Form("external", description="...")
@@ -64,7 +67,8 @@
    - external: 生成外挂字幕文件
    - none: 不生成字幕
 
-4. **backend/app/models/task.py**
+2. **backend/app/models/task.py**
+
    ```python
    # 修改前
    subtitle_mode: Mapped[SubtitleMode] = mapped_column(
@@ -77,7 +81,8 @@
    )
    ```
 
-5. **backend/app/schemas/task.py** (2处)
+3. **backend/app/schemas/task.py** (2处)
+
    ```python
    # TaskCreate
    subtitle_mode: SubtitleMode = Field(
@@ -92,7 +97,8 @@
    )
    ```
 
-6. **backend/app/services/task_service.py**
+4. **backend/app/services/task_service.py**
+
    ```python
    # 修改前
    subtitle_mode=getattr(task_data, 'subtitle_mode', SubtitleMode.EXTERNAL),
@@ -101,7 +107,8 @@
    subtitle_mode=getattr(task_data, 'subtitle_mode', SubtitleMode.BURN),
    ```
 
-7. **backend/app/workers/tasks.py**
+5. **backend/app/workers/tasks.py**
+
    ```python
    # 修改前
    subtitle_mode = task.subtitle_mode or SubtitleMode.EXTERNAL
@@ -112,7 +119,7 @@
 
 ### 数据库迁移 (1个文件)
 
-8. **backend/migrations/versions/005_change_subtitle_mode_default.py**
+1. **backend/migrations/versions/005_change_subtitle_mode_default.py**
    - 新增迁移脚本
    - 将数据库表默认值从 'EXTERNAL' 改为 'BURN'
 
@@ -151,7 +158,7 @@ docker-compose -f docker-compose.v2.yml exec api alembic upgrade head
 
 ### 1. 前端验证
 
-访问 http://localhost:3000/tasks/new
+访问 <http://localhost:3000/tasks/new>
 
 - [ ] 字幕模式下拉框默认选中 "烧录字幕（推荐）"
 - [ ] 选项顺序：烧录 > 外挂 > 不生成

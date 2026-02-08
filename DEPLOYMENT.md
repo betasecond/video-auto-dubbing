@@ -54,9 +54,9 @@ docker-compose -f docker-compose.v2.yml exec api alembic upgrade head
 
 ### 5. 访问服务
 
-- 前端界面: http://your-server-ip:3000
-- 后端 API: http://your-server-ip:8000
-- API 文档: http://your-server-ip:8000/api/v1/docs
+- 前端界面: <http://your-server-ip:3000>
+- 后端 API: <http://your-server-ip:8000>
+- API 文档: <http://your-server-ip:8000/api/v1/docs>
 
 ## 🔧 服务管理
 
@@ -299,6 +299,7 @@ docker-compose -f docker-compose.v2.yml exec api alembic upgrade head
 ## 🆘 支持
 
 如遇问题，请查看：
+
 - 项目文档: README.md
 - 问题追踪: GitHub Issues
 - 日志文件: `docker-compose logs`

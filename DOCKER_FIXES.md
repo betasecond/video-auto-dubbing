@@ -5,16 +5,19 @@
 ### 1. Redis 配置统一 ✅
 
 **问题：**
+
 - Docker Compose 中 Redis 设置了密码 `--requirepass`
 - 本地开发环境未设置密码
 - 导致连接失败
 
 **解决方案：**
+
 - 移除 Redis 密码配置，统一使用无密码模式
 - 更新 `docker-compose.v2.yml` 和 `docker-compose.prod.yml`
 - 移除所有环境变量中的 `REDIS_PASSWORD`
 
 **文件修改：**
+
 ```yaml
 # docker-compose.v2.yml
 redis:
@@ -24,15 +27,18 @@ redis:
 ### 2. Celery Worker 队列配置 ✅
 
 **问题：**
+
 - Worker 命令未指定监听队列
 - 任务路由配置与实际任务名称不匹配
 - 任务被发送到 `celery` 默认队列，但 worker 未监听
 
 **解决方案：**
+
 - 更新 Celery worker 启动命令，明确指定监听的队列
 - 修正任务路由配置，使用实际的任务名称
 
 **文件修改：**
+
 ```yaml
 # docker-compose.v2.yml & docker-compose.prod.yml
 worker:
@@ -57,14 +63,17 @@ celery_app.conf.task_routes = {
 ### 3. 配置文件路径修复 ✅
 
 **问题：**
+
 - `backend/app/config.py` 中硬编码了本地开发路径
 - Docker 容器中路径不存在，导致配置加载失败
 
 **解决方案：**
+
 - 使用相对路径 `.env`，适用于本地和 Docker 环境
 - Docker 通过环境变量注入配置，不依赖 .env 文件
 
 **文件修改：**
+
 ```python
 # backend/app/config.py
 model_config = SettingsConfigDict(
@@ -78,27 +87,32 @@ model_config = SettingsConfigDict(
 ### 4. 新增文件
 
 #### `.env.docker.example`
+
 - Docker 部署专用的环境变量模板
 - 包含所有必需的配置项
 - 无 Redis 密码配置
 
 #### `docker-compose.prod.yml`
+
 - 生产环境专用配置
 - 移除开发模式的卷挂载
 - 添加资源限制
 - 使用生产构建
 
 #### `DEPLOYMENT.md`
+
 - 完整的 Docker 部署指南
 - 包含故障排查、性能优化等
 
 #### `docker-test.sh`
+
 - 自动化测试脚本
 - 验证 Docker 部署是否正常
 
 ## 📋 部署前检查清单
 
 ### 必需配置
+
 - [ ] `DASHSCOPE_API_KEY` - 阿里云百炼 API Key
 - [ ] `OSS_ACCESS_KEY_ID` - 阿里云 OSS Access Key
 - [ ] `OSS_ACCESS_KEY_SECRET` - 阿里云 OSS Secret Key
@@ -107,6 +121,7 @@ model_config = SettingsConfigDict(
 - [ ] `OSS_PUBLIC_DOMAIN` - OSS 公网访问域名
 
 ### 可选配置
+
 - [ ] `DB_PASSWORD` - 数据库密码（生产环境建议修改）
 - [ ] `WORKER_CONCURRENCY` - Worker 并发数（根据 CPU 调整）
 - [ ] `CORS_ORIGINS` - 跨域配置（根据实际域名配置）
@@ -177,9 +192,9 @@ docker-compose -f docker-compose.v2.yml logs -f worker
 
 ### 3. 访问测试
 
-- 前端: http://localhost:3000
-- 后端: http://localhost:8000
-- API 文档: http://localhost:8000/api/v1/docs
+- 前端: <http://localhost:3000>
+- 后端: <http://localhost:8000>
+- API 文档: <http://localhost:8000/api/v1/docs>
 
 ### 4. 功能测试
 
