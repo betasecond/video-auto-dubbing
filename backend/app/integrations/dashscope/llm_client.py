@@ -91,7 +91,8 @@ class LLMClient:
                     {"role": "user", "content": user_prompt},
                 ],
                 max_tokens=self.max_tokens,
-                temperature=0.3,  # 较低温度，保证翻译稳定性
+                temperature=0.1,  # 极低温度（0.1），确保翻译稳定性和一致性
+                top_p=0.9,  # 限制采样范围，进一步提高稳定性
             )
 
             translation = response.choices[0].message.content.strip()
@@ -227,17 +228,48 @@ class LLMClient:
         source_name = lang_names.get(source_lang, source_lang)
         target_name = lang_names.get(target_lang, target_lang)
 
-        return f"""你是一个专业的视频字幕翻译专家。
+        # 根据语言方向给出长度控制建议
+        length_guidance = ""
+        if source_lang == "zh" and target_lang == "en":
+            length_guidance = """
+⚠️ 长度控制策略（中→英）：
+- 英文通常比中文长 20-40%，必须主动精简
+- 删减冗余修饰词和语气词
+- 使用更短的同义词（如：utilize → use, purchase → buy）
+- 简化从句（如：which is → that's, in order to → to）
+- 目标：译文朗读时长不超过原文的 1.2 倍"""
+        elif source_lang == "en" and target_lang == "zh":
+            length_guidance = """
+⚠️ 长度控制策略（英→中）：
+- 中文通常比英文短 20-30%，可适当扩展
+- 保持信息完整性，不过度压缩
+- 使用自然的中文表达，避免翻译腔
+- 目标：译文朗读时长与原文基本一致"""
+        else:
+            length_guidance = """
+⚠️ 长度控制策略：
+- 译文朗读时长应与原文相当（±20%以内）
+- 优先保留核心信息，删减次要细节
+- 采用目标语言的自然表达，避免逐字直译"""
+
+        return f"""你是一个专业的视频配音翻译专家。
 
 任务：将{source_name}文本翻译成{target_name}
+{length_guidance}
 
-要求：
-1. 保持原意准确，符合目标语言的表达习惯
-2. 保留原文的语气和情感
-3. 对于专有名词，保持原样或使用通用翻译
-4. 只输出翻译结果，不要添加任何解释或说明
-5. 保持原文的格式和标点符号风格
-6. 【重要】翻译应简洁精炼，尽量使译文的朗读时长与原文相当（这对视频配音非常重要），避免译文过长导致语速过快"""
+翻译要求：
+1. 【核心】严格控制译文长度，确保配音时语速自然（这是最重要的要求）
+2. 保持原意准确，符合目标语言的表达习惯
+3. 保留原文的语气和情感（如：专业、幽默、严肃等）
+4. 专有名词保持原样或使用通用翻译
+5. 只输出翻译结果，不要添加解释、注释或额外说明
+6. 保持原文的分段格式，但可以调整标点符号以符合目标语言习惯
+
+翻译技巧：
+- 优先传达核心信息，而非逐字翻译
+- 使用简洁的表达方式
+- 避免冗长的从句和修饰语
+- 符合目标语言的自然语序和习惯用法"""
 
     def _build_user_prompt(self, text: str, context: Optional[str] = None) -> str:
         """构建用户提示词"""
