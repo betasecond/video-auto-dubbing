@@ -1,182 +1,187 @@
-version: '3.8'
+# ============================================================
+# Docker Compose - Production Configuration
+# Video Auto Dubbing: FastAPI + Celery + Next.js
+# ============================================================
+# Usage:
+#   1. Create .env file with REQUIRED variables (see .env.prod.example)
+#   2. docker compose -f docker-compose.prod.yml up -d
+#
+# Prerequisites:
+#   - courseark-network must exist (created by psychic-broccoli)
+#   - Caddy must be running with dubbing.courseark.online configured
+# ============================================================
 
 services:
-  # PostgreSQL 数据库
+  # ==========================================================
+  # PostgreSQL Database
+  # ==========================================================
   db:
     image: postgres:15-alpine
-    container_name: video-dubbing-db
+    container_name: dubbing-db
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME:-dubbing}
-      POSTGRES_USER: ${DB_USER:-dubbing}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-dubbing123}
+      POSTGRES_DB: ${POSTGRES_DB:-dubbing}
+      POSTGRES_USER: ${POSTGRES_USER:-dubbing}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - dubbing_postgres_data:/var/lib/postgresql/data
+    networks:
+      - dubbing-internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-dubbing}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dubbing}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - dubbing-network
-    restart: unless-stopped
 
-  # Redis (Celery Broker + Cache) - 无密码
+  # ==========================================================
+  # Redis (Celery Broker + Cache)
+  # ==========================================================
   redis:
     image: redis:7-alpine
-    container_name: video-dubbing-redis
+    container_name: dubbing-redis
+    restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
-      - redis_data:/data
+      - dubbing_redis_data:/data
+    networks:
+      - dubbing-internal
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - dubbing-network
-    restart: unless-stopped
 
-  # FastAPI 后端
+  # ==========================================================
+  # FastAPI Backend
+  # ==========================================================
   api:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: video-dubbing-api
+    image: dubbing-api:latest
+    container_name: dubbing-api
+    restart: unless-stopped
     environment:
-      # 数据库配置
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-dubbing}
-      DB_USER: ${DB_USER:-dubbing}
-      DB_PASSWORD: ${DB_PASSWORD:-dubbing123}
-
-      # Redis 配置（无密码）
+      # Database
+      POSTGRES_SERVER: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-dubbing}
+      POSTGRES_USER: ${POSTGRES_USER:-dubbing}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      # Redis
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_DB: 0
-
-      # 阿里云 OSS
-      OSS_ENDPOINT: ${OSS_ENDPOINT}
-      OSS_BUCKET: ${OSS_BUCKET}
-      OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID}
-      OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET}
-      OSS_PUBLIC_DOMAIN: ${OSS_PUBLIC_DOMAIN}
-      OSS_PREFIX: ${OSS_PREFIX:-video-auto-dubbing}
-      OSS_USE_SSL: ${OSS_USE_SSL:-true}
-
-      # 阿里百炼 DashScope
-      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
-
-      # ASR/LLM/TTS 配置
-      ASR_MODEL: ${ASR_MODEL:-fun-asr}
-      LLM_MODEL: ${LLM_MODEL:-qwen-turbo}
-      TTS_MODEL: ${TTS_MODEL:-qwen3-tts-vc-realtime-2026-01-15}
-
-      # 应用配置
-      DEBUG: ${DEBUG:-false}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-
-    ports:
-      - "${API_PORT:-8000}:8000"
+      # Aliyun DashScope
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?DASHSCOPE_API_KEY is required}
+      # Aliyun OSS
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-oss}
+      OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID:?OSS_ACCESS_KEY_ID is required}
+      OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET:?OSS_ACCESS_KEY_SECRET is required}
+      OSS_ENDPOINT: ${OSS_ENDPOINT:?OSS_ENDPOINT is required}
+      OSS_BUCKET: ${OSS_BUCKET:?OSS_BUCKET is required}
+      OSS_PREFIX: ${OSS_PREFIX:-video-auto-dubbing/}
+      # Security
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
+      # CORS - allow frontend domain
+      BACKEND_CORS_ORIGINS: '["https://dubbing.courseark.online"]'
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - api_logs:/app/logs
     networks:
-      - dubbing-network
-    restart: unless-stopped
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+      - dubbing-internal
+      - courseark-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
 
+  # ==========================================================
   # Celery Worker
+  # ==========================================================
   worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: video-dubbing-worker
+    image: dubbing-api:latest
+    container_name: dubbing-worker
+    restart: unless-stopped
     environment:
-      # 数据库配置
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-dubbing}
-      DB_USER: ${DB_USER:-dubbing}
-      DB_PASSWORD: ${DB_PASSWORD:-dubbing123}
-
-      # Redis 配置（无密码）
+      # Database
+      POSTGRES_SERVER: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-dubbing}
+      POSTGRES_USER: ${POSTGRES_USER:-dubbing}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      # Redis
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      REDIS_DB: 0
-
-      # 阿里云 OSS
-      OSS_ENDPOINT: ${OSS_ENDPOINT}
-      OSS_BUCKET: ${OSS_BUCKET}
-      OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID}
-      OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET}
-      OSS_PUBLIC_DOMAIN: ${OSS_PUBLIC_DOMAIN}
-      OSS_PREFIX: ${OSS_PREFIX:-video-auto-dubbing}
-      OSS_USE_SSL: ${OSS_USE_SSL:-true}
-
-      # 阿里百炼 DashScope
-      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
-
-      # ASR/LLM/TTS 配置
-      ASR_MODEL: ${ASR_MODEL:-fun-asr}
-      LLM_MODEL: ${LLM_MODEL:-qwen-turbo}
-      TTS_MODEL: ${TTS_MODEL:-qwen3-tts-vc-realtime-2026-01-15}
-
-      # Worker 配置
-      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
-      TASK_TIMEOUT: ${TASK_TIMEOUT:-3600}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-
+      # Aliyun DashScope
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?DASHSCOPE_API_KEY is required}
+      # Aliyun OSS
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-oss}
+      OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID:?OSS_ACCESS_KEY_ID is required}
+      OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET:?OSS_ACCESS_KEY_SECRET is required}
+      OSS_ENDPOINT: ${OSS_ENDPOINT:?OSS_ENDPOINT is required}
+      OSS_BUCKET: ${OSS_BUCKET:?OSS_BUCKET is required}
+      OSS_PREFIX: ${OSS_PREFIX:-video-auto-dubbing/}
+      # Worker config
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - worker_logs:/app/logs
     networks:
-      - dubbing-network
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=${WORKER_CONCURRENCY:-4} --queues=default,media,ai,celery
+      - dubbing-internal
+    command: python -m celery -A app.workers.celery_app worker --loglevel=info --concurrency=${WORKER_CONCURRENCY:-2}
 
-  # Next.js 前端
+  # ==========================================================
+  # Next.js Frontend
+  # ==========================================================
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      target: runner
-    container_name: video-dubbing-frontend
-    environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-      NODE_ENV: production
-    ports:
-      - "${FRONTEND_PORT:-3000}:3000"
-    depends_on:
-      - api
-    networks:
-      - dubbing-network
+    image: dubbing-frontend:latest
+    container_name: dubbing-frontend
     restart: unless-stopped
+    environment:
+      API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - dubbing-internal
+      - courseark-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
 
-volumes:
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
-  api_logs:
-    driver: local
-  worker_logs:
-    driver: local
-
+# ==========================================================
+# Networks
+# ==========================================================
 networks:
-  dubbing-network:
+  # Internal network for db/redis communication
+  dubbing-internal:
     driver: bridge
+  # External network shared with Caddy (created by psychic-broccoli)
+  courseark-network:
+    name: psychic-broccoli_courseark-network
+    external: true
+
+# ==========================================================
+# Volumes
+# ==========================================================
+volumes:
+  dubbing_postgres_data:
+    driver: local
+  dubbing_redis_data:
+    driver: local
