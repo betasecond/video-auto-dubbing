@@ -138,7 +138,7 @@ services:
         condition: service_healthy
     networks:
       - dubbing-internal
-    command: python -m celery -A app.workers.celery_app worker --loglevel=info --concurrency=${WORKER_CONCURRENCY:-2}
+    command: python -m celery -A app.workers.celery_app worker --loglevel=info --concurrency=${WORKER_CONCURRENCY:-2} -Q celery,default,media,ai
 
   # ==========================================================
   # Next.js Frontend
