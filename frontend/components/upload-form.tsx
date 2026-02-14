@@ -37,7 +37,7 @@ export default function UploadForm() {
     defaultValues: {
       source_language: 'zh',
       target_language: 'en',
-      subtitle_mode: 'burn',
+      subtitle_mode: 'external',
     },
   });
 
@@ -202,12 +202,12 @@ export default function UploadForm() {
           {...register('subtitle_mode')}
           className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm py-2.5"
         >
-          <option value="burn">烧录字幕（推荐 - 嵌入视频画面）</option>
-          <option value="external">外挂字幕（生成 .ass 文件，可单独下载）</option>
+          <option value="external">外挂字幕（推荐 - 生成 .ass 文件，可单独下载）</option>
           <option value="none">不生成字幕</option>
+          {/* <option value="burn">烧录字幕（嵌入视频画面，需要较大内存）</option> */}
         </select>
         <p className="text-xs text-slate-400">
-          烧录字幕会永久嵌入视频，无需单独加载字幕文件
+          外挂字幕生成独立字幕文件，可在播放器中加载
         </p>
       </div>
 
