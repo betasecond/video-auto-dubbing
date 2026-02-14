@@ -142,30 +142,48 @@ export interface SystemStats {
 // ==================== API 方法 ====================
 
 /**
- * 获取预签名上传 URL（前端直传 OSS）
+ * PostObject 签名响应类型
  */
-export async function getPresignedUploadUrl(filename: string): Promise<{
-  upload_url: string;
+interface PostSignatureResponse {
+  host: string;
+  key: string;
+  policy: string;
+  x_oss_signature_version: string;
+  x_oss_credential: string;
+  x_oss_date: string;
+  signature: string;
   video_key: string;
-  expires_in: number;
-}> {
+}
+
+/**
+ * 获取 PostObject 签名（前端直传 OSS）
+ */
+export async function getPostSignature(filename: string): Promise<PostSignatureResponse> {
   const response = await apiClient.post('/upload/presign', { filename });
   return response.data;
 }
 
 /**
- * 直传文件到 OSS（使用预签名 URL）
+ * 用 PostObject 表单直传文件到 OSS
  */
 export async function uploadToOSS(
-  uploadUrl: string,
+  signData: PostSignatureResponse,
   file: File,
   onProgress?: (percent: number) => void
 ): Promise<void> {
-  await axios.put(uploadUrl, file, {
-    headers: {
-      'Content-Type': file.type || 'application/octet-stream',
-    },
-    timeout: 600000, // 10 分钟，大文件上传
+  const formData = new FormData();
+  formData.append('key', signData.key);
+  formData.append('policy', signData.policy);
+  formData.append('x-oss-signature-version', signData.x_oss_signature_version);
+  formData.append('x-oss-credential', signData.x_oss_credential);
+  formData.append('x-oss-date', signData.x_oss_date);
+  formData.append('x-oss-signature', signData.signature);
+  formData.append('success_action_status', '200');
+  // file 必须是最后一个表单域
+  formData.append('file', file);
+
+  await axios.post(signData.host, formData, {
+    timeout: 600000,
     onUploadProgress: (event) => {
       if (event.total && onProgress) {
         onProgress(Math.round((event.loaded / event.total) * 100));
@@ -185,15 +203,15 @@ export async function createTask(
   subtitleMode: SubtitleMode = 'external',
   onUploadProgress?: (percent: number) => void
 ): Promise<Task> {
-  // 1. 获取预签名 URL
-  const { upload_url, video_key } = await getPresignedUploadUrl(video.name);
+  // 1. 获取 PostObject 签名
+  const signData = await getPostSignature(video.name);
 
-  // 2. 直传到 OSS
-  await uploadToOSS(upload_url, video, onUploadProgress);
+  // 2. FormData POST 直传到 OSS
+  await uploadToOSS(signData, video, onUploadProgress);
 
   // 3. 用 video_key 创建任务
   const formData = new FormData();
-  formData.append('video_key', video_key);
+  formData.append('video_key', signData.video_key);
   formData.append('source_language', sourceLanguage);
   formData.append('target_language', targetLanguage);
   formData.append('subtitle_mode', subtitleMode);
