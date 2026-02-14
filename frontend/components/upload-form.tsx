@@ -23,6 +23,8 @@ const LANGUAGES = [
 export default function UploadForm() {
   const router = useRouter();
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadStage, setUploadStage] = useState<string>('');
   const createTaskMutation = useCreateTask();
 
   const {
@@ -71,10 +73,22 @@ export default function UploadForm() {
   const onSubmit = async (data: TaskCreatePayload) => {
     try {
       setUploadError(null);
-      await createTaskMutation.mutateAsync(data);
-      router.push('/tasks'); // 跳转到列表页
+      setUploadProgress(0);
+      setUploadStage('正在上传视频...');
+      await createTaskMutation.mutateAsync({
+        ...data,
+        onUploadProgress: (percent: number) => {
+          setUploadProgress(percent);
+          if (percent >= 100) {
+            setUploadStage('正在创建任务...');
+          }
+        },
+      } as any);
+      router.push('/tasks');
     } catch (error: any) {
       console.error('Upload failed:', error);
+      setUploadProgress(0);
+      setUploadStage('');
       setUploadError(
         error.message || '创建任务失败，请重试'
       );
@@ -209,6 +223,22 @@ export default function UploadForm() {
           className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm py-2.5"
         />
       </div>
+
+      {/* 上传进度 */}
+      {createTaskMutation.isPending && uploadStage && (
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-slate-600">{uploadStage}</span>
+            <span className="text-blue-600 font-medium">{uploadProgress}%</span>
+          </div>
+          <div className="w-full bg-slate-200 rounded-full h-2.5">
+            <div
+              className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 错误提示 */}
       {uploadError && (

@@ -142,17 +142,58 @@ export interface SystemStats {
 // ==================== API 方法 ====================
 
 /**
- * 创建配音任务
+ * 获取预签名上传 URL（前端直传 OSS）
+ */
+export async function getPresignedUploadUrl(filename: string): Promise<{
+  upload_url: string;
+  video_key: string;
+  expires_in: number;
+}> {
+  const response = await apiClient.post('/upload/presign', { filename });
+  return response.data;
+}
+
+/**
+ * 直传文件到 OSS（使用预签名 URL）
+ */
+export async function uploadToOSS(
+  uploadUrl: string,
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<void> {
+  await axios.put(uploadUrl, file, {
+    headers: {
+      'Content-Type': file.type || 'application/octet-stream',
+    },
+    timeout: 600000, // 10 分钟，大文件上传
+    onUploadProgress: (event) => {
+      if (event.total && onProgress) {
+        onProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    },
+  });
+}
+
+/**
+ * 创建配音任务（前端直传模式）
  */
 export async function createTask(
   video: File,
   sourceLanguage: string,
   targetLanguage: string,
   title?: string,
-  subtitleMode: SubtitleMode = 'external'
+  subtitleMode: SubtitleMode = 'external',
+  onUploadProgress?: (percent: number) => void
 ): Promise<Task> {
+  // 1. 获取预签名 URL
+  const { upload_url, video_key } = await getPresignedUploadUrl(video.name);
+
+  // 2. 直传到 OSS
+  await uploadToOSS(upload_url, video, onUploadProgress);
+
+  // 3. 用 video_key 创建任务
   const formData = new FormData();
-  formData.append('video', video);
+  formData.append('video_key', video_key);
   formData.append('source_language', sourceLanguage);
   formData.append('target_language', targetLanguage);
   formData.append('subtitle_mode', subtitleMode);
@@ -164,7 +205,6 @@ export async function createTask(
     headers: {
       'Content-Type': 'multipart/form-data',
     },
-    timeout: 60000, // 上传文件需要更长时间
   });
 
   return response.data;
@@ -328,13 +368,14 @@ export function getLanguageName(code: string): string {
 // ==================== Task API 对象 ====================
 
 export const taskApi = {
-  create: async (payload: { video: File; source_language: string; target_language: string; title?: string; subtitle_mode?: SubtitleMode }): Promise<Task> => {
+  create: async (payload: { video: File; source_language: string; target_language: string; title?: string; subtitle_mode?: SubtitleMode; onUploadProgress?: (percent: number) => void }): Promise<Task> => {
     return createTask(
       payload.video,
       payload.source_language,
       payload.target_language,
       payload.title,
-      payload.subtitle_mode
+      payload.subtitle_mode,
+      payload.onUploadProgress
     );
   },
 
