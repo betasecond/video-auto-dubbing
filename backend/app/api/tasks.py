@@ -24,7 +24,8 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 @router.post("", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
 async def create_task(
-    video: UploadFile = File(..., description="视频文件"),
+    video: Optional[UploadFile] = File(None, description="视频文件（与 video_key 二选一）"),
+    video_key: Optional[str] = Form(None, description="前端直传 OSS 后的文件路径"),
     source_language: str = Form(..., description="源语言代码，如 zh, en"),
     target_language: str = Form(..., description="目标语言代码"),
     title: Optional[str] = Form(None, description="任务标题"),
@@ -33,20 +34,20 @@ async def create_task(
     storage_service: StorageService = Depends(get_storage_service),
 ):
     """
-    创建配音任务
+    创建配音任务（支持前端直传和后端中转两种模式）
 
-    - **video**: 视频文件（必需）
+    - **video_key**: 前端直传 OSS 后的文件路径（推荐，由 /upload/presign 返回）
+    - **video**: 视频文件（后端中转模式，小文件适用）
     - **source_language**: 源语言代码（必需）
     - **target_language**: 目标语言代码（必需）
     - **title**: 任务标题（可选）
     - **subtitle_mode**: 字幕模式（可选，默认 burn）
-        - burn: 将字幕烧录到视频中（推荐，默认）
-        - external: 生成外挂字幕文件
-        - none: 不生成字幕
     """
-    # 验证文件
-    if not video.filename:
-        raise HTTPException(status_code=400, detail="Invalid video file")
+    # 验证：video 和 video_key 必须提供其一
+    has_video = video is not None and video.filename
+    has_video_key = video_key is not None and video_key.strip()
+    if not has_video and not has_video_key:
+        raise HTTPException(status_code=400, detail="Must provide either video file or video_key")
 
     # 验证语言代码
     valid_languages = {"zh", "en", "ja", "ko", "es", "fr", "de", "ru"}
@@ -58,7 +59,6 @@ async def create_task(
     # 验证字幕模式
     from app.models import SubtitleMode
     try:
-        # 将前端传来的小写值转为大写以匹配枚举
         subtitle_mode_enum = SubtitleMode(subtitle_mode.upper())
     except ValueError:
         raise HTTPException(
@@ -67,19 +67,32 @@ async def create_task(
         )
 
     try:
+        # 确定标题
+        if title:
+            task_title = title
+        elif has_video:
+            task_title = video.filename
+        else:
+            task_title = video_key.split("/")[-1] if video_key else "Untitled"
+
         # 创建任务记录
         task_data = TaskCreate(
-            title=title or video.filename,
+            title=task_title,
             source_language=source_language,
             target_language=target_language,
             subtitle_mode=subtitle_mode_enum,
         )
         task = await task_service.create_task(task_data)
 
-        # 上传视频到 OSS
-        video_path = storage_service.upload_input_video(
-            task.id, video.file, video.filename
-        )
+        # 确定视频路径
+        if has_video_key:
+            # 前端直传模式：video_key 已经是 OSS 相对路径
+            video_path = video_key.strip()
+        else:
+            # 后端中转模式：上传视频到 OSS
+            video_path = storage_service.upload_input_video(
+                task.id, video.file, video.filename
+            )
 
         # 更新任务视频路径
         task.input_video_path = video_path

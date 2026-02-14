@@ -51,8 +51,11 @@ class OSSClient:
         # 创建认证对象
         self.auth = oss2.Auth(self.access_key_id, self.access_key_secret)
 
-        # 创建 Bucket 对象
-        self.bucket = oss2.Bucket(self.auth, self.endpoint, self.bucket_name)
+        # 创建 Bucket 对象（确保使用 HTTPS）
+        endpoint = self.endpoint
+        if not endpoint.startswith("http"):
+            endpoint = f"https://{endpoint}" if settings.oss_use_ssl else f"http://{endpoint}"
+        self.bucket = oss2.Bucket(self.auth, endpoint, self.bucket_name)
 
         logger.info(f"OSS Client initialized: endpoint={self.endpoint}, bucket={self.bucket_name}")
 
@@ -321,7 +324,7 @@ class OSSClient:
         key = self._build_key(oss_path)
 
         try:
-            url = self.bucket.sign_url(method, key, expires)
+            url = self.bucket.sign_url(method, key, expires, slash_safe=True)
             logger.info(f"Generated presigned URL: {key}, expires_in={expires}s")
             return url
         except oss2.exceptions.OssError as e:
