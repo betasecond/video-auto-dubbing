@@ -85,6 +85,9 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
       # CORS - allow frontend domain (match config.py alias: CORS_ORIGINS)
       CORS_ORIGINS: '["https://dubbing.courseark.online"]'
+      # TTS - voice cloning model
+      TTS_MODEL: ${TTS_MODEL:-cosyvoice-v1}
+      TTS_VOICE: ${TTS_VOICE:-longxiaochun}
     depends_on:
       db:
         condition: service_healthy
@@ -131,6 +134,9 @@ services:
       OSS_PREFIX: ${OSS_PREFIX:-video-auto-dubbing/}
       # Worker config
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      # TTS - voice cloning model
+      TTS_MODEL: ${TTS_MODEL:-cosyvoice-v1}
+      TTS_VOICE: ${TTS_VOICE:-longxiaochun}
     depends_on:
       db:
         condition: service_healthy
