@@ -51,11 +51,16 @@ class OSSClient:
         # 创建认证对象
         self.auth = oss2.Auth(self.access_key_id, self.access_key_secret)
 
-        # 创建 Bucket 对象（确保使用 HTTPS）
+        # 创建 Bucket 对象（确保使用 HTTPS，增加超时以支持跨区域大文件传输）
         endpoint = self.endpoint
         if not endpoint.startswith("http"):
             endpoint = f"https://{endpoint}" if settings.oss_use_ssl else f"http://{endpoint}"
-        self.bucket = oss2.Bucket(self.auth, endpoint, self.bucket_name)
+        self.bucket = oss2.Bucket(
+            self.auth, endpoint, self.bucket_name,
+            connect_timeout=30,
+        )
+        # 设置全局超时（connect_timeout, read_timeout），大文件跨区域传输需要较长读取超时
+        self.bucket.timeout = (30, 600)  # 连接 30s，读取 10 分钟
 
         logger.info(f"OSS Client initialized: endpoint={self.endpoint}, bucket={self.bucket_name}")
 
