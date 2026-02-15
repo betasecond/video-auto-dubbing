@@ -54,3 +54,10 @@ celery.log
 # Build artifacts
 frontend/tsconfig.tsbuildinfo
 frontend/pnpm-lock.yaml
+TRANSLATION_CHUNKER_BEFORE_AFTER.md
+TRANSLATION_CHUNKER_FIX_SUMMARY.md
+.gitignore
+TRANSLATION_CHUNKER_INTEGRATION.md
+TRANSLATION_CHUNKER_FIXES_SUMMARY.md
+manage.sh
+
